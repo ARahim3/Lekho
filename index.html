@@ -1,0 +1,2096 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Lekho (লেখো) — Bangla Phonetic Keyboard for macOS</title>
+        <meta
+            name="description"
+            content="The only working Avro Phonetic-compatible Bengali keyboard for modern macOS. Native Apple Silicon, free, powered by OpenBangla's riti engine."
+        />
+        <meta
+            name="keywords"
+            content="avro keyboard mac, bangla keyboard mac, bengali keyboard macos, avro phonetic mac, অভ্র কিবোর্ড ম্যাক, lekho, লেখো"
+        />
+        <meta
+            property="og:title"
+            content="Lekho — Avro-style Bangla typing for Mac"
+        />
+        <meta
+            property="og:description"
+            content="Native Apple Silicon Bengali keyboard. Free. ~2.6MB. Just works."
+        />
+        <meta property="og:type" content="website" />
+        <meta
+            property="og:image"
+            content="https://arahim3.github.io/Lekho/og-image.png"
+        />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:url" content="https://arahim3.github.io/Lekho/" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta
+            name="twitter:title"
+            content="Lekho — Avro-style Bangla typing for Mac"
+        />
+        <meta
+            name="twitter:description"
+            content="Native Apple Silicon Bengali keyboard. Free. ~2.6MB. Just works."
+        />
+        <meta
+            name="twitter:image"
+            content="https://arahim3.github.io/Lekho/og-image.png"
+        />
+        <!-- FIX: favicon now specifies Noto Sans Bengali for reliable Bengali glyph rendering -->
+        <link
+            rel="icon"
+            type="image/svg+xml"
+            href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23C0392B'/%3E%3Ctext x='50' y='68' font-family='Noto Sans Bengali%2C Noto Sans%2C sans-serif' font-size='60' font-weight='700' fill='white' text-anchor='middle'%3Eঅ%3C/text%3E%3C/svg%3E"
+        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --bg: #fdfaf5;
+                --bg-warm: #f8f2e8;
+                --bg-card: #ffffff;
+                --bg-code: #f5efe5;
+                --border: #e8dfd0;
+                --border-light: #f0e8da;
+                --text-primary: #2c1810;
+                --text-body: #4a3728;
+                --text-secondary: #7a6b5d;
+                /* FIX: darkened from #a89888 to #72645a — passes WCAG AA (~5.3:1 on --bg) */
+                --text-dim: #72645a;
+                --vermillion: #c0392b;
+                --vermillion-soft: #c0392b15;
+                --vermillion-glow: #c0392b25;
+                --vermillion-deep: #922b21;
+                --olive: #5d7a3a;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            /* FIX: scroll-behavior only when user hasn't requested reduced motion */
+            @media (prefers-reduced-motion: no-preference) {
+                html {
+                    scroll-behavior: smooth;
+                }
+            }
+
+            body {
+                font-family:
+                    "Source Sans 3",
+                    -apple-system,
+                    sans-serif;
+                background: var(--bg);
+                color: var(--text-body);
+                line-height: 1.75;
+                overflow-x: hidden;
+                -webkit-font-smoothing: antialiased;
+            }
+
+            /* FIX: skip navigation link for keyboard users */
+            .skip-link {
+                position: absolute;
+                top: -100%;
+                left: 1rem;
+                background: var(--vermillion);
+                color: #fff;
+                padding: 0.5rem 1rem;
+                border-radius: 0 0 8px 8px;
+                text-decoration: none;
+                font-size: 0.9rem;
+                font-weight: 500;
+                z-index: 999;
+                transition: top 0.2s;
+            }
+            .skip-link:focus {
+                top: 0;
+            }
+
+            .bangla {
+                font-family: "Noto Sans Bengali", sans-serif;
+            }
+            .bangla-serif {
+                font-family: "Noto Serif Bengali", serif;
+            }
+            code,
+            .mono {
+                font-family: "JetBrains Mono", monospace;
+            }
+
+            /* ========== NAV ========== */
+            nav {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 100;
+                padding: 1rem 2rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                backdrop-filter: blur(16px) saturate(1.4);
+                -webkit-backdrop-filter: blur(16px) saturate(1.4);
+                background: #fdfaf5dd;
+                border-bottom: 1px solid var(--border-light);
+                /* FIX: transition: all → specific properties */
+                transition: padding 0.3s ease, box-shadow 0.3s ease;
+            }
+            nav.scrolled {
+                padding: 0.65rem 2rem;
+                box-shadow: 0 1px 12px rgba(44, 24, 16, 0.06);
+            }
+            .nav-logo {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                text-decoration: none;
+                color: var(--text-primary);
+            }
+            .nav-logo-icon {
+                width: 34px;
+                height: 34px;
+                background: var(--vermillion);
+                border-radius: 9px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: "Noto Serif Bengali", serif;
+                font-weight: 700;
+                font-size: 17px;
+                color: #fff;
+                box-shadow: 0 2px 8px rgba(192, 57, 43, 0.25);
+            }
+            .nav-logo-text {
+                font-family: "Playfair Display", serif;
+                font-size: 1.15rem;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+                color: var(--text-primary);
+            }
+            .nav-links {
+                display: flex;
+                gap: 2rem;
+                align-items: center;
+            }
+            /* FIX: restructured to remove !important — split non-download and download into separate rules */
+            .nav-links a:not(.nav-download) {
+                color: var(--text-secondary);
+                text-decoration: none;
+                font-size: 0.88rem;
+                transition: color 0.2s;
+            }
+            .nav-links a:not(.nav-download):hover {
+                color: var(--text-primary);
+            }
+            .nav-download {
+                background: var(--vermillion);
+                color: #fff;
+                padding: 0.5rem 1.2rem;
+                border-radius: 8px;
+                font-weight: 500;
+                text-decoration: none;
+                /* FIX: transition: all → specific properties */
+                transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+                box-shadow: 0 2px 8px rgba(192, 57, 43, 0.2);
+            }
+            .nav-download:hover {
+                background: var(--vermillion-deep);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 16px rgba(192, 57, 43, 0.25);
+            }
+
+            /* FIX: hamburger button — hidden on desktop, shown on mobile */
+            .nav-hamburger {
+                display: none;
+                flex-direction: column;
+                gap: 5px;
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 6px 4px;
+                order: 2;
+            }
+            .nav-hamburger span {
+                display: block;
+                width: 22px;
+                height: 2px;
+                background: var(--text-primary);
+                border-radius: 2px;
+                transition: transform 0.3s ease, opacity 0.3s ease;
+            }
+            .nav-hamburger.open span:nth-child(1) {
+                transform: rotate(45deg) translate(5px, 5px);
+            }
+            .nav-hamburger.open span:nth-child(2) {
+                opacity: 0;
+                transform: scaleX(0);
+            }
+            .nav-hamburger.open span:nth-child(3) {
+                transform: rotate(-45deg) translate(5px, -5px);
+            }
+
+            /* FIX: mobile navigation menu (absolute, drops below nav bar) */
+            .nav-mobile {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: var(--bg-card);
+                border-bottom: 1px solid var(--border);
+                padding: 0.5rem 1.5rem 1.25rem;
+                flex-direction: column;
+                gap: 0;
+                box-shadow: 0 8px 24px rgba(44, 24, 16, 0.08);
+                display: none;
+            }
+            .nav-mobile.open {
+                display: flex;
+            }
+            .nav-mobile a {
+                color: var(--text-secondary);
+                text-decoration: none;
+                font-size: 0.95rem;
+                padding: 0.7rem 0;
+                border-bottom: 1px solid var(--border-light);
+                transition: color 0.2s;
+            }
+            .nav-mobile a:last-child {
+                border-bottom: none;
+            }
+            .nav-mobile a:hover {
+                color: var(--text-primary);
+            }
+
+            /* ========== HERO ========== */
+            .hero {
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                padding: 8rem 2rem 4rem;
+                position: relative;
+                overflow: hidden;
+            }
+
+            /* Alpona-inspired decorative corners — intentionally opacity:0, reserved for future use */
+            .hero::before,
+            .hero::after {
+                content: "";
+                position: absolute;
+                width: 350px;
+                height: 350px;
+                opacity: 0;
+                pointer-events: none;
+                background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Ccircle cx='100' cy='100' r='90' fill='none' stroke='%23C0392B' stroke-width='1'/%3E%3Ccircle cx='100' cy='100' r='70' fill='none' stroke='%23C0392B' stroke-width='0.8'/%3E%3Ccircle cx='100' cy='100' r='50' fill='none' stroke='%23C0392B' stroke-width='0.6'/%3E%3Cpath d='M100 10 Q130 50 100 100 Q70 50 100 10' fill='none' stroke='%23C0392B' stroke-width='0.8'/%3E%3Cpath d='M190 100 Q150 130 100 100 Q150 70 190 100' fill='none' stroke='%23C0392B' stroke-width='0.8'/%3E%3Cpath d='M100 190 Q70 150 100 100 Q130 150 100 190' fill='none' stroke='%23C0392B' stroke-width='0.8'/%3E%3Cpath d='M10 100 Q50 70 100 100 Q50 130 10 100' fill='none' stroke='%23C0392B' stroke-width='0.8'/%3E%3C/svg%3E")
+                    no-repeat center/contain;
+            }
+            .hero::before {
+                top: 5%;
+                left: -5%;
+            }
+            .hero::after {
+                bottom: 5%;
+                right: -5%;
+                transform: rotate(45deg);
+            }
+
+            .hero-bg-chars {
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                z-index: 0;
+                overflow: hidden;
+            }
+            .hero-bg-char {
+                position: absolute;
+                font-family: "Noto Serif Bengali", serif;
+                color: var(--vermillion);
+                opacity: 0.07;
+                font-weight: 700;
+                animation: float-char 25s ease-in-out infinite;
+                /* FIX: promote to compositor layer for smooth GPU-accelerated animation */
+                will-change: transform;
+            }
+            @keyframes float-char {
+                0%,
+                100% {
+                    transform: translateY(0) rotate(0deg);
+                }
+                33% {
+                    transform: translateY(-12px) rotate(2deg);
+                }
+                66% {
+                    transform: translateY(6px) rotate(-1.5deg);
+                }
+            }
+
+            .hero-content {
+                position: relative;
+                z-index: 1;
+                max-width: 700px;
+            }
+
+            .hero-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.4rem 1rem;
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 100px;
+                font-size: 0.82rem;
+                color: var(--text-secondary);
+                margin-bottom: 2.5rem;
+                box-shadow: 0 1px 4px rgba(44, 24, 16, 0.04);
+                animation: fadeInUp 0.6s ease both;
+            }
+            .hero-badge-dot {
+                width: 6px;
+                height: 6px;
+                background: var(--olive);
+                border-radius: 50%;
+                animation: pulse-dot 2s ease infinite;
+            }
+            @keyframes pulse-dot {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.3;
+                }
+            }
+
+            .hero h1 {
+                font-family: "Playfair Display", serif;
+                font-size: clamp(2.6rem, 5.5vw, 3.8rem);
+                line-height: 1.2;
+                letter-spacing: -0.03em;
+                color: var(--text-primary);
+                margin-bottom: 1.5rem;
+                animation: fadeInUp 0.6s 0.1s ease both;
+            }
+            .hero h1 .highlight {
+                color: var(--vermillion);
+                font-style: italic;
+            }
+
+            .hero-sub {
+                font-size: 1.15rem;
+                color: var(--text-secondary);
+                max-width: 520px;
+                margin: 0 auto 2.5rem;
+                line-height: 1.85;
+                animation: fadeInUp 0.6s 0.2s ease both;
+            }
+
+            .hero-actions {
+                display: flex;
+                gap: 1rem;
+                justify-content: center;
+                flex-wrap: wrap;
+                animation: fadeInUp 0.6s 0.3s ease both;
+            }
+
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.6rem;
+                padding: 0.85rem 1.8rem;
+                border-radius: 10px;
+                font-size: 0.95rem;
+                font-weight: 500;
+                font-family: "Source Sans 3", sans-serif;
+                text-decoration: none;
+                /* FIX: transition: all → specific properties */
+                transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+                cursor: pointer;
+                border: none;
+            }
+            .btn-primary {
+                background: var(--vermillion);
+                color: #fff;
+                box-shadow:
+                    0 4px 20px rgba(192, 57, 43, 0.2),
+                    0 1px 3px rgba(0, 0, 0, 0.08);
+            }
+            .btn-primary:hover {
+                background: var(--vermillion-deep);
+                transform: translateY(-2px);
+                box-shadow:
+                    0 8px 30px rgba(192, 57, 43, 0.25),
+                    0 2px 6px rgba(0, 0, 0, 0.1);
+            }
+            .btn-secondary {
+                background: var(--bg-card);
+                color: var(--text-primary);
+                border: 1px solid var(--border);
+                box-shadow: 0 1px 4px rgba(44, 24, 16, 0.04);
+            }
+            .btn-secondary:hover {
+                border-color: var(--text-dim);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(44, 24, 16, 0.08);
+            }
+            .btn-icon {
+                width: 18px;
+                height: 18px;
+            }
+
+            .hero-meta {
+                margin-top: 3rem;
+                display: flex;
+                justify-content: center;
+                gap: 2rem;
+                animation: fadeInUp 0.6s 0.4s ease both;
+            }
+            .hero-meta-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.1rem;
+            }
+            .hero-meta-value {
+                font-family: "JetBrains Mono", monospace;
+                font-size: 0.88rem;
+                font-weight: 500;
+                color: var(--text-primary);
+            }
+            .hero-meta-label {
+                font-size: 0.72rem;
+                color: var(--text-dim);
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+            }
+
+            /* ========== DIVIDER ========== */
+            .section-divider {
+                max-width: 800px;
+                margin: 0 auto;
+                height: 1px;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    var(--border),
+                    transparent
+                );
+            }
+
+            /* ========== DEMO ========== */
+            .demo-section {
+                padding: 2rem 2rem 5rem;
+                display: flex;
+                justify-content: center;
+            }
+            .demo-container {
+                width: 100%;
+                max-width: 600px;
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 14px;
+                overflow: hidden;
+                box-shadow:
+                    0 8px 40px rgba(44, 24, 16, 0.06),
+                    0 1px 3px rgba(44, 24, 16, 0.04);
+            }
+            .demo-titlebar {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 12px 16px;
+                background: var(--bg-warm);
+                border-bottom: 1px solid var(--border-light);
+            }
+            .demo-dot {
+                width: 11px;
+                height: 11px;
+                border-radius: 50%;
+            }
+            .demo-dot.red {
+                background: #ff5f57;
+            }
+            .demo-dot.yellow {
+                background: #ffbd2e;
+            }
+            .demo-dot.green {
+                background: #28ca42;
+            }
+            .demo-titlebar-text {
+                flex: 1;
+                text-align: center;
+                font-size: 0.78rem;
+                color: var(--text-dim);
+            }
+            .demo-body {
+                padding: 1.75rem 2rem 2.25rem;
+            }
+            .demo-label {
+                font-size: 0.7rem;
+                color: var(--text-dim);
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                margin-bottom: 0.5rem;
+                display: block;
+            }
+            .demo-typed {
+                font-family: "JetBrains Mono", monospace;
+                font-size: 0.88rem;
+                color: var(--text-dim);
+                margin-bottom: 0.5rem;
+                min-height: 1.4em;
+            }
+            .demo-output {
+                font-family: "Noto Serif Bengali", serif;
+                font-size: 1.7rem;
+                font-weight: 600;
+                color: var(--text-primary);
+                min-height: 2.5em;
+                line-height: 1.55;
+            }
+            .demo-cursor {
+                display: inline-block;
+                width: 2px;
+                height: 1.7rem;
+                background: var(--vermillion);
+                margin-left: 2px;
+                vertical-align: text-bottom;
+                animation: blink 1s step-end infinite;
+            }
+            @keyframes blink {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0;
+                }
+            }
+
+            /* FIX: noscript fallback note styling */
+            .noscript-demo-note {
+                text-align: center;
+                padding: 0 2rem 3rem;
+                font-size: 0.88rem;
+                color: var(--text-secondary);
+            }
+            .noscript-demo-note code {
+                font-size: 0.82rem;
+                background: var(--bg-code);
+                padding: 0.15rem 0.45rem;
+                border-radius: 4px;
+                border: 1px solid var(--border-light);
+                color: var(--vermillion-deep);
+            }
+
+            /* ========== SECTIONS COMMON ========== */
+            .section-label {
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                letter-spacing: 0.12em;
+                color: var(--vermillion);
+                margin-bottom: 0.75rem;
+                font-weight: 500;
+            }
+            .section-title {
+                font-family: "Playfair Display", serif;
+                font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+                letter-spacing: -0.02em;
+                color: var(--text-primary);
+                margin-bottom: 3rem;
+            }
+
+            /* ========== FEATURES ========== */
+            .features {
+                padding: 5rem 2rem;
+                max-width: 960px;
+                margin: 0 auto;
+            }
+            .feature-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+                gap: 1.25rem;
+            }
+            .feature-card {
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 1.6rem;
+                /* FIX: transition: all → specific properties */
+                transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+            }
+            .feature-card:hover {
+                border-color: var(--text-dim);
+                transform: translateY(-2px);
+                box-shadow: 0 8px 24px rgba(44, 24, 16, 0.06);
+            }
+            .feature-icon {
+                width: 38px;
+                height: 38px;
+                background: var(--vermillion-soft);
+                border-radius: 9px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.1rem;
+                margin-bottom: 0.9rem;
+            }
+            .feature-card h3 {
+                font-size: 0.95rem;
+                font-weight: 600;
+                color: var(--text-primary);
+                margin-bottom: 0.4rem;
+            }
+            .feature-card p {
+                font-size: 0.88rem;
+                color: var(--text-secondary);
+                line-height: 1.7;
+            }
+            .feature-card a {
+                color: var(--vermillion);
+                text-decoration: underline;
+                text-underline-offset: 2px;
+            }
+
+            /* ========== INSTALL ========== */
+            .install {
+                padding: 5rem 2rem;
+                max-width: 680px;
+                margin: 0 auto;
+            }
+            .install-steps {
+                display: flex;
+                flex-direction: column;
+                gap: 1.5rem;
+            }
+            .install-step {
+                display: flex;
+                gap: 1.25rem;
+                align-items: flex-start;
+            }
+            .step-number {
+                width: 34px;
+                height: 34px;
+                min-width: 34px;
+                background: var(--vermillion-soft);
+                border: 1px solid var(--vermillion-glow);
+                border-radius: 9px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: "JetBrains Mono", monospace;
+                font-size: 0.82rem;
+                font-weight: 500;
+                color: var(--vermillion);
+            }
+            .step-content h3 {
+                font-size: 0.95rem;
+                font-weight: 600;
+                color: var(--text-primary);
+                margin-bottom: 0.25rem;
+            }
+            .step-content p {
+                font-size: 0.88rem;
+                color: var(--text-secondary);
+                line-height: 1.65;
+            }
+            .step-content a {
+                color: var(--vermillion);
+            }
+            .step-content code {
+                font-size: 0.82rem;
+                background: var(--bg-code);
+                padding: 0.15rem 0.45rem;
+                border-radius: 4px;
+                border: 1px solid var(--border-light);
+                color: var(--vermillion-deep);
+            }
+            .install-note {
+                margin-top: 2rem;
+                padding: 1.2rem 1.5rem;
+                background: var(--bg-warm);
+                border: 1px solid var(--border);
+                border-left: 3px solid var(--vermillion);
+                border-radius: 0 10px 10px 0;
+                font-size: 0.88rem;
+                color: var(--text-secondary);
+                line-height: 1.7;
+            }
+            .install-note strong {
+                color: var(--text-primary);
+            }
+            .install-note a {
+                color: var(--vermillion);
+            }
+
+            /* ========== TECH ========== */
+            .tech {
+                padding: 5rem 2rem;
+                max-width: 960px;
+                margin: 0 auto;
+            }
+            .tech-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+            }
+            .tech-card {
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 1.4rem 1.6rem;
+            }
+            .tech-card-label {
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--text-dim);
+                margin-bottom: 0.35rem;
+            }
+            .tech-card-value {
+                font-size: 1.05rem;
+                font-weight: 600;
+                color: var(--text-primary);
+            }
+            .tech-card-detail {
+                font-size: 0.82rem;
+                color: var(--text-secondary);
+                margin-top: 0.25rem;
+                line-height: 1.6;
+            }
+
+            /* ========== CTA ========== */
+            .cta {
+                padding: 4rem 2rem 6rem;
+                text-align: center;
+            }
+            .cta-container {
+                max-width: 560px;
+                margin: 0 auto;
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                padding: 3rem 2.5rem;
+                position: relative;
+                overflow: hidden;
+                box-shadow: 0 4px 20px rgba(44, 24, 16, 0.04);
+            }
+            .cta-container::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    var(--vermillion),
+                    transparent
+                );
+                opacity: 0.5;
+            }
+            .cta h2 {
+                font-family: "Playfair Display", serif;
+                font-size: 1.6rem;
+                letter-spacing: -0.02em;
+                color: var(--text-primary);
+                margin-bottom: 0.6rem;
+            }
+            .cta p {
+                color: var(--text-secondary);
+                margin-bottom: 1.75rem;
+                font-size: 0.95rem;
+            }
+            .cta-actions {
+                display: flex;
+                gap: 1rem;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            /* ========== FOOTER ========== */
+            footer {
+                padding: 2.5rem 2rem;
+                border-top: 1px solid var(--border);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                max-width: 960px;
+                margin: 0 auto;
+                flex-wrap: wrap;
+                gap: 1rem;
+            }
+            footer p {
+                font-size: 0.8rem;
+                color: var(--text-dim);
+            }
+            footer a {
+                color: var(--text-secondary);
+                text-decoration: none;
+                font-size: 0.8rem;
+                transition: color 0.2s;
+            }
+            footer a:hover {
+                color: var(--vermillion);
+            }
+            .footer-links {
+                display: flex;
+                gap: 1.5rem;
+            }
+
+            /* ========== ANIMATIONS ========== */
+            @keyframes fadeInUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            .animate-on-scroll {
+                opacity: 0;
+                transform: translateY(20px);
+                /* FIX: transition: all → specific properties */
+                transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+            }
+            .animate-on-scroll.visible {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            /* FIX: respect user's reduced-motion preference */
+            @media (prefers-reduced-motion: reduce) {
+                .hero-bg-char {
+                    animation: none;
+                }
+                .demo-cursor {
+                    animation: none;
+                    opacity: 1;
+                }
+                .hero-badge-dot {
+                    animation: none;
+                }
+                .hero-badge,
+                .hero h1,
+                .hero-sub,
+                .hero-actions,
+                .hero-meta {
+                    animation: none;
+                    opacity: 1;
+                    transform: none;
+                }
+                .animate-on-scroll {
+                    opacity: 1;
+                    transform: none;
+                    transition: none;
+                }
+                .btn,
+                .feature-card,
+                .nav-download,
+                .nav-hamburger span,
+                .skip-link {
+                    transition: none;
+                }
+            }
+
+            /* ========== RESPONSIVE ========== */
+            @media (max-width: 768px) {
+                /* FIX: show hamburger; reorder so layout is [logo] [hamburger] [download] */
+                .nav-hamburger {
+                    display: flex;
+                    order: 2;
+                }
+                .nav-links {
+                    order: 3;
+                }
+                .nav-links a:not(.nav-download) {
+                    display: none;
+                }
+                .hero {
+                    padding: 7rem 1.5rem 3rem;
+                    min-height: auto;
+                }
+                .hero::before,
+                .hero::after {
+                    display: none;
+                }
+                .hero-meta {
+                    gap: 1.25rem;
+                    flex-wrap: wrap;
+                }
+                .tech-grid {
+                    grid-template-columns: 1fr;
+                }
+                .feature-grid {
+                    grid-template-columns: 1fr;
+                }
+                .cta-container {
+                    padding: 2.5rem 1.5rem;
+                }
+                footer {
+                    flex-direction: column;
+                    text-align: center;
+                }
+            }
+            @media (max-width: 480px) {
+                .hero h1 {
+                    font-size: 2rem;
+                }
+                .hero-actions {
+                    flex-direction: column;
+                    align-items: center;
+                }
+                .btn {
+                    width: 100%;
+                    justify-content: center;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- FIX: skip navigation link for keyboard/screen reader users -->
+        <a href="#features" class="skip-link">Skip to main content</a>
+
+        <nav id="nav">
+            <a href="#" class="nav-logo">
+                <!-- FIX: lang="bn" on Bengali character -->
+                <div class="nav-logo-icon bangla-serif" lang="bn">অ</div>
+                <span class="nav-logo-text"
+                    >Lekho
+                    <span
+                        class="bangla"
+                        lang="bn"
+                        style="
+                            font-family:
+                                &quot;Noto Sans Bengali&quot;, sans-serif;
+                            font-size: 0.85em;
+                            opacity: 0.7;
+                        "
+                        >(লেখো)</span
+                    ></span
+                >
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#install">Install</a>
+                <!-- FIX: rel="noopener noreferrer" on all external target="_blank" links -->
+                <a href="https://github.com/ARahim3/Lekho" target="_blank" rel="noopener noreferrer"
+                    >GitHub</a
+                >
+                <a
+                    href="https://github.com/ARahim3/Lekho/releases/latest"
+                    class="nav-download"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >Download</a
+                >
+            </div>
+            <!-- FIX: hamburger button for mobile navigation -->
+            <button
+                class="nav-hamburger"
+                id="nav-hamburger"
+                aria-label="Open navigation menu"
+                aria-expanded="false"
+                aria-controls="nav-mobile"
+            >
+                <span></span><span></span><span></span>
+            </button>
+            <!-- FIX: mobile menu (Features + Install + GitHub; Download stays in nav bar) -->
+            <div class="nav-mobile" id="nav-mobile" role="navigation" aria-label="Mobile navigation">
+                <a href="#features">Features</a>
+                <a href="#install">Install</a>
+                <a href="https://github.com/ARahim3/Lekho" target="_blank" rel="noopener noreferrer">GitHub</a>
+            </div>
+        </nav>
+
+        <!-- FIX: div → <main> for semantic landmark; footer is now outside <main> -->
+        <main style="position: relative">
+            <div class="hero-bg-chars" aria-hidden="true">
+                <!-- Row 1: hero area -->
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 2%;
+                        left: 8%;
+                        font-size: 5rem;
+                        animation-delay: -2s;
+                    "
+                    >অ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 5%;
+                        right: 30%;
+                        font-size: 4.5rem;
+                        animation-delay: -17s;
+                    "
+                    >ঋ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 8%;
+                        left: 42%;
+                        font-size: 3rem;
+                        animation-delay: -4s;
+                    "
+                    >ঐ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 4%;
+                        right: 10%;
+                        font-size: 4rem;
+                        animation-delay: -5s;
+                    "
+                    >আ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 12%;
+                        left: 78%;
+                        font-size: 4rem;
+                        animation-delay: -3s;
+                    "
+                    >ব</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 15%;
+                        left: 92%;
+                        font-size: 3.5rem;
+                        animation-delay: -16s;
+                    "
+                    >ন</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 10%;
+                        left: 4%;
+                        font-size: 5.5rem;
+                        animation-delay: -8s;
+                    "
+                    >ক</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 14%;
+                        right: 7%;
+                        font-size: 3.5rem;
+                        animation-delay: -12s;
+                    "
+                    >ম</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 18%;
+                        left: 22%;
+                        font-size: 3rem;
+                        animation-delay: -7s;
+                    "
+                    >ল</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 9%;
+                        left: 50%;
+                        font-size: 6rem;
+                        animation-delay: -13s;
+                    "
+                    >ভ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 16%;
+                        left: 65%;
+                        font-size: 3rem;
+                        animation-delay: -9s;
+                    "
+                    >ধ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 20%;
+                        right: 4%;
+                        font-size: 5rem;
+                        animation-delay: -10s;
+                    "
+                    >ই</span
+                >
+                <!-- Row 2: demo / features area -->
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 24%;
+                        left: 6%;
+                        font-size: 4.5rem;
+                        animation-delay: -6s;
+                    "
+                    >র</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 26%;
+                        left: 55%;
+                        font-size: 3.5rem;
+                        animation-delay: -15s;
+                    "
+                    >ত</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 22%;
+                        right: 15%;
+                        font-size: 4.5rem;
+                        animation-delay: -1s;
+                    "
+                    >প</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 28%;
+                        left: 35%;
+                        font-size: 4rem;
+                        animation-delay: -11s;
+                    "
+                    >শ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 30%;
+                        right: 25%;
+                        font-size: 3rem;
+                        animation-delay: -19s;
+                    "
+                    >চ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 25%;
+                        left: 85%;
+                        font-size: 3.5rem;
+                        animation-delay: -14s;
+                    "
+                    >গ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 32%;
+                        left: 12%;
+                        font-size: 4rem;
+                        animation-delay: -3s;
+                    "
+                    >হ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 34%;
+                        right: 8%;
+                        font-size: 5rem;
+                        animation-delay: -7s;
+                    "
+                    >দ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 33%;
+                        left: 70%;
+                        font-size: 3rem;
+                        animation-delay: -20s;
+                    "
+                    >ঞ</span
+                >
+                <!-- Row 3: install area -->
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 38%;
+                        left: 3%;
+                        font-size: 3.5rem;
+                        animation-delay: -9s;
+                    "
+                    >ঘ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 40%;
+                        left: 45%;
+                        font-size: 5rem;
+                        animation-delay: -5s;
+                    "
+                    >য</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 42%;
+                        right: 5%;
+                        font-size: 4rem;
+                        animation-delay: -12s;
+                    "
+                    >ছ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 36%;
+                        left: 25%;
+                        font-size: 4.5rem;
+                        animation-delay: -2s;
+                    "
+                    >ণ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 44%;
+                        left: 80%;
+                        font-size: 3rem;
+                        animation-delay: -16s;
+                    "
+                    >ঠ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 41%;
+                        right: 30%;
+                        font-size: 3.5rem;
+                        animation-delay: -8s;
+                    "
+                    >ড</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 46%;
+                        left: 10%;
+                        font-size: 4.5rem;
+                        animation-delay: -14s;
+                    "
+                    >ফ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 48%;
+                        left: 60%;
+                        font-size: 5.5rem;
+                        animation-delay: -4s;
+                    "
+                    >স</span
+                >
+                <!-- Row 4: tech area -->
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 52%;
+                        right: 12%;
+                        font-size: 4rem;
+                        animation-delay: -11s;
+                    "
+                    >থ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 54%;
+                        left: 5%;
+                        font-size: 3rem;
+                        animation-delay: -18s;
+                    "
+                    >উ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 50%;
+                        left: 35%;
+                        font-size: 4.5rem;
+                        animation-delay: -6s;
+                    "
+                    >জ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 56%;
+                        left: 75%;
+                        font-size: 3.5rem;
+                        animation-delay: -1s;
+                    "
+                    >ঢ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 58%;
+                        right: 22%;
+                        font-size: 5rem;
+                        animation-delay: -10s;
+                    "
+                    >অ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 53%;
+                        left: 90%;
+                        font-size: 3rem;
+                        animation-delay: -15s;
+                    "
+                    >এ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 57%;
+                        left: 18%;
+                        font-size: 4rem;
+                        animation-delay: -3s;
+                    "
+                    >খ</span
+                >
+                <!-- Row 5: ekushey / cta area -->
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 62%;
+                        left: 8%;
+                        font-size: 5rem;
+                        animation-delay: -7s;
+                    "
+                    >ও</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 65%;
+                        left: 50%;
+                        font-size: 3.5rem;
+                        animation-delay: -13s;
+                    "
+                    >ঙ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 60%;
+                        right: 6%;
+                        font-size: 4.5rem;
+                        animation-delay: -2s;
+                    "
+                    >ঝ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 68%;
+                        left: 30%;
+                        font-size: 4rem;
+                        animation-delay: -9s;
+                    "
+                    >ট</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 64%;
+                        left: 72%;
+                        font-size: 3rem;
+                        animation-delay: -17s;
+                    "
+                    >ঈ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 70%;
+                        right: 18%;
+                        font-size: 5.5rem;
+                        animation-delay: -5s;
+                    "
+                    >আ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 66%;
+                        left: 88%;
+                        font-size: 3.5rem;
+                        animation-delay: -11s;
+                    "
+                    >ঔ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 72%;
+                        left: 15%;
+                        font-size: 4rem;
+                        animation-delay: -8s;
+                    "
+                    >ম</span
+                >
+                <!-- Row 6: footer area -->
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 76%;
+                        left: 55%;
+                        font-size: 4.5rem;
+                        animation-delay: -4s;
+                    "
+                    >ক</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 78%;
+                        right: 10%;
+                        font-size: 3rem;
+                        animation-delay: -14s;
+                    "
+                    >ল</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 74%;
+                        left: 4%;
+                        font-size: 3.5rem;
+                        animation-delay: -19s;
+                    "
+                    >ত</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 80%;
+                        left: 40%;
+                        font-size: 5rem;
+                        animation-delay: -6s;
+                    "
+                    >ব</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 82%;
+                        right: 25%;
+                        font-size: 4rem;
+                        animation-delay: -1s;
+                    "
+                    >র</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 84%;
+                        left: 70%;
+                        font-size: 3rem;
+                        animation-delay: -12s;
+                    "
+                    >প</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 78%;
+                        left: 20%;
+                        font-size: 4.5rem;
+                        animation-delay: -16s;
+                    "
+                    >ভ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 88%;
+                        left: 8%;
+                        font-size: 3.5rem;
+                        animation-delay: -10s;
+                    "
+                    >গ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 86%;
+                        left: 50%;
+                        font-size: 4rem;
+                        animation-delay: -3s;
+                    "
+                    >শ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 90%;
+                        right: 8%;
+                        font-size: 5rem;
+                        animation-delay: -8s;
+                    "
+                    >দ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 92%;
+                        left: 35%;
+                        font-size: 3rem;
+                        animation-delay: -15s;
+                    "
+                    >হ</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 94%;
+                        left: 75%;
+                        font-size: 4.5rem;
+                        animation-delay: -7s;
+                    "
+                    >স</span
+                >
+                <span
+                    class="hero-bg-char"
+                    style="
+                        top: 96%;
+                        left: 15%;
+                        font-size: 4rem;
+                        animation-delay: -13s;
+                    "
+                    >ন</span
+                >
+            </div>
+
+            <section class="hero">
+                <div class="hero-content">
+                    <div class="hero-badge">
+                        <span class="hero-badge-dot"></span>
+                        v0.1 — Early release, testers welcome
+                    </div>
+                    <h1>
+                        Avro Phonetic typing is<br /><span class="highlight"
+                            >back on Mac.</span
+                        >
+                    </h1>
+                    <p class="hero-sub">
+                        If you've been without a working Bangla phonetic
+                        keyboard since <strong>iAvro</strong> stopped working on
+                        modern macOS —
+                        <strong style="color: var(--text-primary)"
+                            >Lekho</strong
+                        >
+                        is its spiritual successor. Native Apple Silicon, free
+                        forever.
+                    </p>
+                    <div class="hero-actions">
+                        <a
+                            href="https://github.com/ARahim3/Lekho/releases/latest"
+                            class="btn btn-primary"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <svg
+                                class="btn-icon"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path
+                                    d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
+                                />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Download for macOS
+                        </a>
+                        <a href="#install" class="btn btn-secondary">
+                            How to Install
+                        </a>
+                    </div>
+                    <div class="hero-meta">
+                        <div class="hero-meta-item">
+                            <span class="hero-meta-value">~2.6 MB</span>
+                            <span class="hero-meta-label">Download</span>
+                        </div>
+                        <div class="hero-meta-item">
+                            <span class="hero-meta-value">Apple Silicon</span>
+                            <span class="hero-meta-label">Native</span>
+                        </div>
+                        <div class="hero-meta-item">
+                            <span class="hero-meta-value">Free</span>
+                            <span class="hero-meta-label">Forever</span>
+                        </div>
+                        <div class="hero-meta-item">
+                            <span class="hero-meta-value">150k</span>
+                            <!-- FIX: "Words" → "Dictionary" for clarity -->
+                            <span class="hero-meta-label">Dictionary</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="demo-section">
+                <div class="demo-container animate-on-scroll">
+                    <div class="demo-titlebar">
+                        <div class="demo-dot red"></div>
+                        <div class="demo-dot yellow"></div>
+                        <div class="demo-dot green"></div>
+                        <span class="demo-titlebar-text"
+                            >Lekho — Phonetic Mode</span
+                        >
+                    </div>
+                    <div class="demo-body">
+                        <span class="demo-label">You type</span>
+                        <div class="demo-typed" id="demo-typed"></div>
+                        <span class="demo-label" style="margin-top: 0.75rem"
+                            >You get</span
+                        >
+                        <div class="demo-output">
+                            <span class="bangla-serif" lang="bn" id="demo-output"></span
+                            ><span class="demo-cursor"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <!-- FIX: noscript fallback for users with JavaScript disabled -->
+            <noscript>
+                <p class="noscript-demo-note">
+                    Enable JavaScript to see the live typing demo.
+                    Example: type <code>ami banglay gan gai</code> → <span lang="bn">আমি বাংলায় গান গাই</span>
+                </p>
+            </noscript>
+
+            <div class="section-divider"></div>
+
+            <section class="features" id="features">
+                <div class="animate-on-scroll">
+                    <div class="section-label">Why Lekho</div>
+                    <h2 class="section-title">
+                        Everything iAvro did. On modern macOS.
+                    </h2>
+                </div>
+                <div class="feature-grid">
+                    <div class="feature-card animate-on-scroll">
+                        <div class="feature-icon">⌨️</div>
+                        <h3>Full Avro Phonetic</h3>
+                        <p>
+                            The same transliteration you know — type
+                            <code class="mono" style="font-size: 0.78rem"
+                                >ami banglay gan gai</code
+                            >
+                            and get
+                            <!-- FIX: lang="bn" on Bengali text -->
+                            <span class="bangla" lang="bn" style="font-weight: 500"
+                                >আমি বাংলায় গান গাই</span
+                            >. Conjuncts, reph, ya-phala — all handled.
+                        </p>
+                    </div>
+                    <div class="feature-card animate-on-scroll">
+                        <div class="feature-icon">📖</div>
+                        <h3>150k Word Dictionary</h3>
+                        <p>
+                            Smart suggestions from a comprehensive Bangla
+                            dictionary. Autocorrect catches common typos. Your
+                            preferred candidates are remembered.
+                        </p>
+                    </div>
+                    <div class="feature-card animate-on-scroll">
+                        <div class="feature-icon">🪶</div>
+                        <h3>~2.6 MB. Zero Bloat.</h3>
+                        <p>
+                            Native Apple Silicon binary. No Electron, no Java,
+                            no background daemon. Instant startup, zero CPU when
+                            idle. A proper input method.
+                        </p>
+                    </div>
+                    <div class="feature-card animate-on-scroll">
+                        <div class="feature-icon">🍎</div>
+                        <h3>macOS 13+ Native</h3>
+                        <p>
+                            Built with InputMethodKit — the same framework Apple
+                            uses. Works in Safari, Chrome, VS Code, TextEdit,
+                            Spotlight, everywhere.
+                        </p>
+                    </div>
+                    <div class="feature-card animate-on-scroll">
+                        <div class="feature-icon">🔒</div>
+                        <h3>No Data Collection</h3>
+                        <p>
+                            Everything runs locally on your Mac. No internet
+                            connection needed, no telemetry, no keystrokes ever
+                            leave your machine.
+                        </p>
+                    </div>
+                    <div class="feature-card animate-on-scroll">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Powered by OpenBangla</h3>
+                        <p>
+                            Built on
+                            <a
+                                href="https://github.com/OpenBangla/riti"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                >riti</a
+                            >
+                            — the same proven engine behind OpenBangla Keyboard
+                            on Linux, now on macOS.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <div class="section-divider"></div>
+
+            <section class="install" id="install">
+                <div class="animate-on-scroll">
+                    <div class="section-label">Get Started</div>
+                    <h2 class="section-title">Up and running in 2 minutes.</h2>
+                </div>
+                <div class="install-steps">
+                    <div class="install-step animate-on-scroll">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Download &amp; install</h3>
+                            <p>
+                                Grab the latest <code>.dmg</code> from
+                                <a
+                                    href="https://github.com/ARahim3/Lekho/releases/latest"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >GitHub Releases</a
+                                >. Open it and double-click
+                                <strong>Install Lekho.pkg</strong> — the
+                                installer handles everything. Log out and back
+                                in once for macOS to discover it.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="install-step animate-on-scroll">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>Add the input source</h3>
+                            <p>
+                                Open
+                                <strong
+                                    >System Settings → Keyboard → Input Sources
+                                    → Edit</strong
+                                >, click <strong>+</strong>, find
+                                <strong>English → Lekho</strong>, and add it.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="install-step animate-on-scroll">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>
+                                Start typing
+                                <!-- FIX: lang="bn" on Bengali text -->
+                                <span class="bangla" lang="bn" style="font-weight: 600"
+                                    >বাংলা</span
+                                >
+                            </h3>
+                            <p>
+                                Switch to Lekho from the menu bar or use your
+                                keyboard shortcut. Type in English, see Bengali.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="install-note animate-on-scroll">
+                    <strong>Early release (v0.1):</strong> It works, but you may
+                    find rough edges. Found a bug?
+                    <a
+                        href="https://github.com/ARahim3/Lekho/issues"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        >Open an issue</a
+                    >
+                    — every report helps.
+                </div>
+            </section>
+
+            <div class="section-divider"></div>
+
+            <!-- FIX: added id="tech" for anchor navigation -->
+            <section class="tech" id="tech">
+                <div class="animate-on-scroll">
+                    <div class="section-label">Under the Hood</div>
+                    <h2 class="section-title">Technical details</h2>
+                </div>
+                <div class="tech-grid">
+                    <div class="tech-card animate-on-scroll">
+                        <div class="tech-card-label">Engine</div>
+                        <div class="tech-card-value">OpenBangla riti</div>
+                        <div class="tech-card-detail">
+                            Bengali input method library (Rust), bridged to
+                            macOS via Swift + InputMethodKit.
+                        </div>
+                    </div>
+                    <div class="tech-card animate-on-scroll">
+                        <div class="tech-card-label">Architecture</div>
+                        <div class="tech-card-value">Apple Silicon</div>
+                        <div class="tech-card-detail">
+                            Native arm64 binary. Built for M1/M2/M3/M4/M5 Macs.
+                        </div>
+                    </div>
+                    <div class="tech-card animate-on-scroll">
+                        <div class="tech-card-label">Requires</div>
+                        <div class="tech-card-value">macOS 13+</div>
+                        <div class="tech-card-detail">
+                            Ventura, Sonoma, Sequoia and later.
+                        </div>
+                    </div>
+                    <div class="tech-card animate-on-scroll">
+                        <div class="tech-card-label">Price</div>
+                        <div class="tech-card-value">Free</div>
+                        <div class="tech-card-detail">
+                            No ads, no subscription, no sign-up. Just download
+                            and type.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="cta">
+                <div class="cta-container animate-on-scroll">
+                    <h2>
+                        <!-- FIX: lang="bn" on Bengali text -->
+                        <span
+                            class="bangla-serif"
+                            lang="bn"
+                            style="color: var(--vermillion)"
+                            >লেখো</span
+                        >, on your Mac.
+                    </h2>
+                    <p>
+                        Download Lekho and help us test. Every bug report makes
+                        it better for everyone.
+                    </p>
+                    <div class="cta-actions">
+                        <a
+                            href="https://github.com/ARahim3/Lekho/releases/latest"
+                            class="btn btn-primary"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <svg
+                                class="btn-icon"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path
+                                    d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
+                                />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            <!-- FIX: "Download v0.1" → "Download for macOS" (version-independent) -->
+                            Download for macOS
+                        </a>
+                        <a
+                            href="https://github.com/ARahim3/Lekho/issues"
+                            class="btn btn-secondary"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            Report a Bug
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </main>
+        <!-- FIX: footer moved outside <main> -->
+        <footer>
+            <p>
+                Maintained by
+                <a href="https://github.com/ARahim3" target="_blank" rel="noopener noreferrer"
+                    >Abdur Rahim</a
+                >
+                · Powered by
+                <a href="https://github.com/OpenBangla/riti" target="_blank" rel="noopener noreferrer"
+                    >OpenBangla's riti engine</a
+                >
+                · Not affiliated with OmicronLab
+            </p>
+            <div class="footer-links">
+                <a href="https://github.com/ARahim3/Lekho" target="_blank" rel="noopener noreferrer"
+                    >GitHub</a
+                >
+                <a
+                    href="https://github.com/ARahim3/Lekho/issues"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >Report Bug</a
+                >
+                <a href="https://arahim3.github.io" target="_blank" rel="noopener noreferrer"
+                    >arahim3.github.io</a
+                >
+            </div>
+        </footer>
+
+        <script>
+            /* Nav scroll shadow */
+            const nav = document.getElementById("nav");
+            window.addEventListener("scroll", () =>
+                nav.classList.toggle("scrolled", window.scrollY > 40),
+            );
+
+            /* Scroll-triggered animations */
+            const observer = new IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry, i) => {
+                        if (entry.isIntersecting) {
+                            setTimeout(
+                                () => entry.target.classList.add("visible"),
+                                i * 50,
+                            );
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                },
+                { threshold: 0.1, rootMargin: "0px 0px -30px 0px" },
+            );
+            document
+                .querySelectorAll(".animate-on-scroll")
+                .forEach((el) => observer.observe(el));
+
+            /* FIX: hamburger menu toggle */
+            const hamburger = document.getElementById("nav-hamburger");
+            const mobileMenu = document.getElementById("nav-mobile");
+            hamburger.addEventListener("click", () => {
+                const isOpen = mobileMenu.classList.toggle("open");
+                hamburger.classList.toggle("open", isOpen);
+                hamburger.setAttribute("aria-expanded", String(isOpen));
+            });
+            /* Close mobile menu when a link is tapped */
+            mobileMenu.querySelectorAll("a").forEach((link) => {
+                link.addEventListener("click", () => {
+                    mobileMenu.classList.remove("open");
+                    hamburger.classList.remove("open");
+                    hamburger.setAttribute("aria-expanded", "false");
+                });
+            });
+
+            /* FIX: demo uses word-boundary output mapping instead of raw character proportion.
+               Complete words snap to their full Bengali form; only the in-progress word
+               uses proportional interpolation — much closer to real IME behaviour. */
+            const demos = [
+                { typed: "ami banglay gan gai", output: "আমি বাংলায় গান গাই" },
+                { typed: "bangladesh amar desh", output: "বাংলাদেশ আমার দেশ" },
+                { typed: "tumi kemon acho?", output: "তুমি কেমন আছো?" },
+                { typed: "amar sonar bangla", output: "আমার সোনার বাংলা" },
+                { typed: "shubho noboborsho", output: "শুভ নববর্ষ" },
+            ];
+
+            function getOutputForTyped(demo, charIndex) {
+                const engWords = demo.typed.split(" ");
+                const bnWords = demo.output.split(" ");
+                let result = "";
+                let pos = 0;
+                for (let i = 0; i < engWords.length; i++) {
+                    const wordEnd = pos + engWords[i].length;
+                    if (charIndex >= wordEnd) {
+                        // Word fully typed — show complete Bengali word
+                        result += bnWords[i];
+                        if (charIndex > wordEnd && i < engWords.length - 1) {
+                            result += " ";
+                        }
+                        pos = wordEnd + 1;
+                    } else if (charIndex > pos) {
+                        // Word in progress — proportionally reveal only this word
+                        const p = (charIndex - pos) / engWords[i].length;
+                        const bnWord = bnWords[i];
+                        result += bnWord.substring(
+                            0,
+                            Math.max(1, Math.round(p * bnWord.length)),
+                        );
+                        break;
+                    } else {
+                        break;
+                    }
+                }
+                return result;
+            }
+
+            let currentDemo = 0,
+                charIndex = 0,
+                isTyping = true;
+            const typedEl = document.getElementById("demo-typed");
+            const outputEl = document.getElementById("demo-output");
+
+            function typeNext() {
+                const demo = demos[currentDemo];
+                if (isTyping) {
+                    if (charIndex <= demo.typed.length) {
+                        typedEl.textContent = demo.typed.substring(0, charIndex);
+                        outputEl.textContent = getOutputForTyped(demo, charIndex);
+                        charIndex++;
+                        setTimeout(typeNext, 55 + Math.random() * 40);
+                    } else {
+                        setTimeout(() => {
+                            isTyping = false;
+                            typeNext();
+                        }, 2200);
+                    }
+                } else {
+                    if (charIndex > 0) {
+                        charIndex--;
+                        typedEl.textContent = demo.typed.substring(0, charIndex);
+                        outputEl.textContent = getOutputForTyped(demo, charIndex);
+                        setTimeout(typeNext, 18);
+                    } else {
+                        currentDemo = (currentDemo + 1) % demos.length;
+                        isTyping = true;
+                        setTimeout(typeNext, 500);
+                    }
+                }
+            }
+            setTimeout(typeNext, 1000);
+        </script>
+    </body>
+</html>
