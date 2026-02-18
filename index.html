@@ -14,7 +14,7 @@
         />
         <meta
             property="og:title"
-            content="Lekho — Avro-style Bangla typing for Mac"
+            content="Lekho — Avro-style Phonetic typing for Mac"
         />
         <meta
             property="og:description"
@@ -144,7 +144,9 @@
                 background: #fdfaf5dd;
                 border-bottom: 1px solid var(--border-light);
                 /* FIX: transition: all → specific properties */
-                transition: padding 0.3s ease, box-shadow 0.3s ease;
+                transition:
+                    padding 0.3s ease,
+                    box-shadow 0.3s ease;
             }
             nav.scrolled {
                 padding: 0.65rem 2rem;
@@ -201,7 +203,10 @@
                 font-weight: 500;
                 text-decoration: none;
                 /* FIX: transition: all → specific properties */
-                transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+                transition:
+                    background 0.2s,
+                    transform 0.2s,
+                    box-shadow 0.2s;
                 box-shadow: 0 2px 8px rgba(192, 57, 43, 0.2);
             }
             .nav-download:hover {
@@ -227,7 +232,9 @@
                 height: 2px;
                 background: var(--text-primary);
                 border-radius: 2px;
-                transition: transform 0.3s ease, opacity 0.3s ease;
+                transition:
+                    transform 0.3s ease,
+                    opacity 0.3s ease;
             }
             .nav-hamburger.open span:nth-child(1) {
                 transform: rotate(45deg) translate(5px, 5px);
@@ -416,7 +423,11 @@
                 font-family: "Source Sans 3", sans-serif;
                 text-decoration: none;
                 /* FIX: transition: all → specific properties */
-                transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+                transition:
+                    background 0.25s ease,
+                    transform 0.25s ease,
+                    box-shadow 0.25s ease,
+                    border-color 0.25s ease;
                 cursor: pointer;
                 border: none;
             }
@@ -629,7 +640,10 @@
                 border-radius: 12px;
                 padding: 1.6rem;
                 /* FIX: transition: all → specific properties */
-                transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+                transition:
+                    border-color 0.3s ease,
+                    transform 0.3s ease,
+                    box-shadow 0.3s ease;
             }
             .feature-card:hover {
                 border-color: var(--text-dim);
@@ -866,7 +880,9 @@
                 opacity: 0;
                 transform: translateY(20px);
                 /* FIX: transition: all → specific properties */
-                transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+                transition:
+                    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+                    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
             }
             .animate-on-scroll.visible {
                 opacity: 1;
@@ -989,7 +1005,10 @@
                 <a href="#features">Features</a>
                 <a href="#install">Install</a>
                 <!-- FIX: rel="noopener noreferrer" on all external target="_blank" links -->
-                <a href="https://github.com/ARahim3/Lekho" target="_blank" rel="noopener noreferrer"
+                <a
+                    href="https://github.com/ARahim3/Lekho"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     >GitHub</a
                 >
                 <a
@@ -1011,10 +1030,20 @@
                 <span></span><span></span><span></span>
             </button>
             <!-- FIX: mobile menu (Features + Install + GitHub; Download stays in nav bar) -->
-            <div class="nav-mobile" id="nav-mobile" role="navigation" aria-label="Mobile navigation">
+            <div
+                class="nav-mobile"
+                id="nav-mobile"
+                role="navigation"
+                aria-label="Mobile navigation"
+            >
                 <a href="#features">Features</a>
                 <a href="#install">Install</a>
-                <a href="https://github.com/ARahim3/Lekho" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <a
+                    href="https://github.com/ARahim3/Lekho"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >GitHub</a
+                >
             </div>
         </nav>
 
@@ -1687,7 +1716,11 @@
                             >You get</span
                         >
                         <div class="demo-output">
-                            <span class="bangla-serif" lang="bn" id="demo-output"></span
+                            <span
+                                class="bangla-serif"
+                                lang="bn"
+                                id="demo-output"
+                            ></span
                             ><span class="demo-cursor"></span>
                         </div>
                     </div>
@@ -1696,8 +1729,9 @@
             <!-- FIX: noscript fallback for users with JavaScript disabled -->
             <noscript>
                 <p class="noscript-demo-note">
-                    Enable JavaScript to see the live typing demo.
-                    Example: type <code>ami banglay gan gai</code> → <span lang="bn">আমি বাংলায় গান গাই</span>
+                    Enable JavaScript to see the live typing demo. Example: type
+                    <code>ami banglay gan gai</code> →
+                    <span lang="bn">আমি বাংলায় গান গাই</span>
                 </p>
             </noscript>
 
@@ -1721,7 +1755,10 @@
                             >
                             and get
                             <!-- FIX: lang="bn" on Bengali text -->
-                            <span class="bangla" lang="bn" style="font-weight: 500"
+                            <span
+                                class="bangla"
+                                lang="bn"
+                                style="font-weight: 500"
                                 >আমি বাংলায় গান গাই</span
                             >. Conjuncts, reph, ya-phala — all handled.
                         </p>
@@ -1826,7 +1863,10 @@
                             <h3>
                                 Start typing
                                 <!-- FIX: lang="bn" on Bengali text -->
-                                <span class="bangla" lang="bn" style="font-weight: 600"
+                                <span
+                                    class="bangla"
+                                    lang="bn"
+                                    style="font-weight: 600"
                                     >বাংলা</span
                                 >
                             </h3>
@@ -1948,17 +1988,26 @@
         <footer>
             <p>
                 Maintained by
-                <a href="https://github.com/ARahim3" target="_blank" rel="noopener noreferrer"
+                <a
+                    href="https://github.com/ARahim3"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     >Abdur Rahim</a
                 >
                 · Powered by
-                <a href="https://github.com/OpenBangla/riti" target="_blank" rel="noopener noreferrer"
+                <a
+                    href="https://github.com/OpenBangla/riti"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     >OpenBangla's riti engine</a
                 >
                 · Not affiliated with OmicronLab
             </p>
             <div class="footer-links">
-                <a href="https://github.com/ARahim3/Lekho" target="_blank" rel="noopener noreferrer"
+                <a
+                    href="https://github.com/ARahim3/Lekho"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     >GitHub</a
                 >
                 <a
@@ -1967,7 +2016,10 @@
                     rel="noopener noreferrer"
                     >Report Bug</a
                 >
-                <a href="https://arahim3.github.io" target="_blank" rel="noopener noreferrer"
+                <a
+                    href="https://arahim3.github.io"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     >arahim3.github.io</a
                 >
             </div>
@@ -2067,8 +2119,14 @@
                 const demo = demos[currentDemo];
                 if (isTyping) {
                     if (charIndex <= demo.typed.length) {
-                        typedEl.textContent = demo.typed.substring(0, charIndex);
-                        outputEl.textContent = getOutputForTyped(demo, charIndex);
+                        typedEl.textContent = demo.typed.substring(
+                            0,
+                            charIndex,
+                        );
+                        outputEl.textContent = getOutputForTyped(
+                            demo,
+                            charIndex,
+                        );
                         charIndex++;
                         setTimeout(typeNext, 55 + Math.random() * 40);
                     } else {
@@ -2080,8 +2138,14 @@
                 } else {
                     if (charIndex > 0) {
                         charIndex--;
-                        typedEl.textContent = demo.typed.substring(0, charIndex);
-                        outputEl.textContent = getOutputForTyped(demo, charIndex);
+                        typedEl.textContent = demo.typed.substring(
+                            0,
+                            charIndex,
+                        );
+                        outputEl.textContent = getOutputForTyped(
+                            demo,
+                            charIndex,
+                        );
                         setTimeout(typeNext, 18);
                     } else {
                         currentDemo = (currentDemo + 1) % demos.length;
