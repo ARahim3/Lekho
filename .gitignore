@@ -1,1 +1,22 @@
+# Build artifacts
+build/
+engine/target/
+
+# macOS
 .DS_Store
+*.swp
+*~
+
+# Private dev notes
+CLAUDE.md
+PLAN.md
+.claude/
+
+# Draft folders (kept locally)
+github_repo_final/
+github_repo_plan/
+
+# Xcode (if ever opened)
+*.xcodeproj
+*.xcworkspace
+xcuserdata/

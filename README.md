@@ -27,7 +27,7 @@ Lekho fills this gap. It's a native macOS input method that works in every app �
 - **Works on all Apple Silicon Macs** — MacBook Air, MacBook Pro, iMac, Mac Mini, Mac Studio (M1/M2/M3/M4/M5)
 - **Works everywhere** — built with Apple's InputMethodKit framework
 - **Completely offline** — no internet, no data collection, no telemetry
-- **Free** — no ads, no subscription
+- **Free and open source** (MPL-2.0) — no ads, no subscription
 
 ## Install
 
@@ -42,6 +42,35 @@ Lekho fills this gap. It's a native macOS input method that works in every app �
 - macOS 13 (Ventura) or later
 - Apple Silicon Mac (M1/M2/M3/M4/M5)
 
+## Build from Source
+
+Prerequisites: Rust toolchain, Xcode (for Swift and InputMethodKit).
+
+```bash
+# Install Rust (if not already)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup target add aarch64-apple-darwin
+
+# Build
+make build
+
+# Install to ~/Library/Input Methods/
+make install
+
+# Create distributable .dmg
+bash scripts/create_dmg.sh
+```
+
+## Architecture
+
+```
+Swift (InputMethodKit)  ←→  Rust Engine (riti) via C FFI
+```
+
+- **Rust engine** (`engine/`) — wraps [OpenBangla/riti](https://github.com/OpenBangla/riti), compiled as a static library
+- **Swift IMK layer** (`Lekho/`) — subclasses `IMKInputController`, handles key events, candidate window, and text commits
+- **No Xcode project** — built with `swiftc` + `cargo` + shell scripts
+
 ## Credits
 
 Lekho is powered by [OpenBangla's riti engine](https://github.com/OpenBangla/riti) — the same Bengali transliteration engine behind [OpenBangla Keyboard](https://github.com/OpenBangla/OpenBangla-Keyboard) on Linux.
@@ -49,6 +78,10 @@ Lekho is powered by [OpenBangla's riti engine](https://github.com/OpenBangla/rit
 ## Feedback
 
 Found a bug or have a suggestion? [Open an issue](https://github.com/ARahim3/Lekho/issues).
+
+## License
+
+[MPL-2.0](LICENSE)
 
 ---
 
