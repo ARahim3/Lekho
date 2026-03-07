@@ -3,18 +3,20 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Lekho (লেখো) — Bangla Phonetic Keyboard for macOS</title>
+        <!-- SEO: title includes "Avro" — the #1 search term people use -->
+        <title>Lekho — Avro Phonetic Bangla Keyboard for macOS | Free Apple Silicon</title>
         <meta
             name="description"
-            content="The only working Avro Phonetic-compatible Bengali keyboard for modern macOS. Native Apple Silicon, free, powered by OpenBangla's riti engine."
+            content="Lekho is a free Avro Phonetic Bangla keyboard for macOS. Native Apple Silicon (M1–M5), works in every app. The only working Avro-style Bengali typing for modern Mac. Replaces iAvro."
         />
+        <!-- SEO: expanded keywords covering English + Bengali search terms -->
         <meta
             name="keywords"
-            content="avro keyboard mac, bangla keyboard mac, bengali keyboard macos, avro phonetic mac, অভ্র কিবোর্ড ম্যাক, lekho, লেখো"
+            content="avro keyboard mac, avro phonetic mac, avro macbook, avro apple silicon, avro M4, avro M5, bangla keyboard mac, bengali keyboard macos, bangla typing mac, bengali typing macbook, avro keyboard macbook, lekho, লেখো, অভ্র কিবোর্ড ম্যাক, বাংলা কিবোর্ড ম্যাক, বাংলা টাইপিং ম্যাক, iavro replacement, avro phonetic macos, bangla input method mac, bengali ime macos, avro keyboard apple silicon, bangla keyboard macbook"
         />
         <meta
             property="og:title"
-            content="Lekho — Avro-style Phonetic typing for Mac"
+            content="Lekho — Avro-style Bangla typing for Mac"
         />
         <meta
             property="og:description"
@@ -41,6 +43,37 @@
             name="twitter:image"
             content="https://arahim3.github.io/Lekho/og-image.png"
         />
+        <!-- SEO: JSON-LD structured data for rich search results -->
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "Lekho",
+            "alternateName": ["Lekho Bangla Keyboard", "Avro Keyboard for Mac", "Avro Phonetic macOS"],
+            "description": "Avro Phonetic Bangla keyboard for macOS. Native Apple Silicon, free, open source. The only working Avro-style Bengali keyboard for modern Mac.",
+            "url": "https://arahim3.github.io/Lekho/",
+            "downloadUrl": "https://github.com/ARahim3/Lekho/releases/latest",
+            "operatingSystem": "macOS 13 (Ventura), macOS 14 (Sonoma), macOS 15 (Sequoia), macOS 16+",
+            "processorRequirements": "Apple Silicon (M1, M2, M3, M4, M5)",
+            "applicationCategory": "UtilitiesApplication",
+            "applicationSubCategory": "Input Method",
+            "fileSize": "2.6MB",
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "author": {
+                "@type": "Person",
+                "name": "Abdur Rahim",
+                "url": "https://github.com/ARahim3"
+            },
+            "softwareVersion": "0.1",
+            "license": "https://opensource.org/licenses/MPL-2.0",
+            "inLanguage": ["en", "bn"],
+            "keywords": "avro keyboard mac, bangla keyboard macos, bengali typing macbook, avro phonetic apple silicon"
+        }
+        </script>
         <!-- FIX: favicon now specifies Noto Sans Bengali for reliable Bengali glyph rendering -->
         <link
             rel="icon"
@@ -144,9 +177,7 @@
                 background: #fdfaf5dd;
                 border-bottom: 1px solid var(--border-light);
                 /* FIX: transition: all → specific properties */
-                transition:
-                    padding 0.3s ease,
-                    box-shadow 0.3s ease;
+                transition: padding 0.3s ease, box-shadow 0.3s ease;
             }
             nav.scrolled {
                 padding: 0.65rem 2rem;
@@ -203,10 +234,7 @@
                 font-weight: 500;
                 text-decoration: none;
                 /* FIX: transition: all → specific properties */
-                transition:
-                    background 0.2s,
-                    transform 0.2s,
-                    box-shadow 0.2s;
+                transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
                 box-shadow: 0 2px 8px rgba(192, 57, 43, 0.2);
             }
             .nav-download:hover {
@@ -232,9 +260,7 @@
                 height: 2px;
                 background: var(--text-primary);
                 border-radius: 2px;
-                transition:
-                    transform 0.3s ease,
-                    opacity 0.3s ease;
+                transition: transform 0.3s ease, opacity 0.3s ease;
             }
             .nav-hamburger.open span:nth-child(1) {
                 transform: rotate(45deg) translate(5px, 5px);
@@ -423,11 +449,7 @@
                 font-family: "Source Sans 3", sans-serif;
                 text-decoration: none;
                 /* FIX: transition: all → specific properties */
-                transition:
-                    background 0.25s ease,
-                    transform 0.25s ease,
-                    box-shadow 0.25s ease,
-                    border-color 0.25s ease;
+                transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
                 cursor: pointer;
                 border: none;
             }
@@ -640,10 +662,7 @@
                 border-radius: 12px;
                 padding: 1.6rem;
                 /* FIX: transition: all → specific properties */
-                transition:
-                    border-color 0.3s ease,
-                    transform 0.3s ease,
-                    box-shadow 0.3s ease;
+                transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
             }
             .feature-card:hover {
                 border-color: var(--text-dim);
@@ -835,6 +854,54 @@
                 flex-wrap: wrap;
             }
 
+            /* ========== FAQ (SEO) ========== */
+            .faq {
+                padding: 3rem 2rem 1rem;
+                max-width: 680px;
+                margin: 0 auto;
+            }
+            .faq details {
+                margin-bottom: 0.75rem;
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                overflow: hidden;
+            }
+            .faq summary {
+                padding: 1rem 1.4rem;
+                font-size: 0.92rem;
+                font-weight: 600;
+                color: var(--text-primary);
+                cursor: pointer;
+                list-style: none;
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+            }
+            .faq summary::before {
+                content: "+";
+                font-family: "JetBrains Mono", monospace;
+                font-size: 1.1rem;
+                font-weight: 400;
+                color: var(--vermillion);
+                flex-shrink: 0;
+                width: 1.2em;
+                text-align: center;
+                transition: transform 0.2s;
+            }
+            .faq details[open] summary::before {
+                content: "\2212";
+            }
+            .faq summary::-webkit-details-marker {
+                display: none;
+            }
+            .faq details p {
+                padding: 0 1.4rem 1.2rem 3.35rem;
+                font-size: 0.88rem;
+                color: var(--text-secondary);
+                line-height: 1.7;
+            }
+
             /* ========== FOOTER ========== */
             footer {
                 padding: 2.5rem 2rem;
@@ -880,9 +947,7 @@
                 opacity: 0;
                 transform: translateY(20px);
                 /* FIX: transition: all → specific properties */
-                transition:
-                    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
-                    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+                transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
             }
             .animate-on-scroll.visible {
                 opacity: 1;
@@ -1005,10 +1070,7 @@
                 <a href="#features">Features</a>
                 <a href="#install">Install</a>
                 <!-- FIX: rel="noopener noreferrer" on all external target="_blank" links -->
-                <a
-                    href="https://github.com/ARahim3/Lekho"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                <a href="https://github.com/ARahim3/Lekho" target="_blank" rel="noopener noreferrer"
                     >GitHub</a
                 >
                 <a
@@ -1030,20 +1092,10 @@
                 <span></span><span></span><span></span>
             </button>
             <!-- FIX: mobile menu (Features + Install + GitHub; Download stays in nav bar) -->
-            <div
-                class="nav-mobile"
-                id="nav-mobile"
-                role="navigation"
-                aria-label="Mobile navigation"
-            >
+            <div class="nav-mobile" id="nav-mobile" role="navigation" aria-label="Mobile navigation">
                 <a href="#features">Features</a>
                 <a href="#install">Install</a>
-                <a
-                    href="https://github.com/ARahim3/Lekho"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    >GitHub</a
-                >
+                <a href="https://github.com/ARahim3/Lekho" target="_blank" rel="noopener noreferrer">GitHub</a>
             </div>
         </nav>
 
@@ -1716,11 +1768,7 @@
                             >You get</span
                         >
                         <div class="demo-output">
-                            <span
-                                class="bangla-serif"
-                                lang="bn"
-                                id="demo-output"
-                            ></span
+                            <span class="bangla-serif" lang="bn" id="demo-output"></span
                             ><span class="demo-cursor"></span>
                         </div>
                     </div>
@@ -1729,9 +1777,8 @@
             <!-- FIX: noscript fallback for users with JavaScript disabled -->
             <noscript>
                 <p class="noscript-demo-note">
-                    Enable JavaScript to see the live typing demo. Example: type
-                    <code>ami banglay gan gai</code> →
-                    <span lang="bn">আমি বাংলায় গান গাই</span>
+                    Enable JavaScript to see the live typing demo.
+                    Example: type <code>ami banglay gan gai</code> → <span lang="bn">আমি বাংলায় গান গাই</span>
                 </p>
             </noscript>
 
@@ -1755,10 +1802,7 @@
                             >
                             and get
                             <!-- FIX: lang="bn" on Bengali text -->
-                            <span
-                                class="bangla"
-                                lang="bn"
-                                style="font-weight: 500"
+                            <span class="bangla" lang="bn" style="font-weight: 500"
                                 >আমি বাংলায় গান গাই</span
                             >. Conjuncts, reph, ya-phala — all handled.
                         </p>
@@ -1863,10 +1907,7 @@
                             <h3>
                                 Start typing
                                 <!-- FIX: lang="bn" on Bengali text -->
-                                <span
-                                    class="bangla"
-                                    lang="bn"
-                                    style="font-weight: 600"
+                                <span class="bangla" lang="bn" style="font-weight: 600"
                                     >বাংলা</span
                                 >
                             </h3>
@@ -1983,31 +2024,68 @@
                     </div>
                 </div>
             </section>
+
+            <div class="section-divider"></div>
+
+            <!-- SEO: FAQ section — captures long-tail searches like "avro keyboard macbook",
+                 "bangla typing M4", "iAvro replacement", "avro vs macOS Bengali" etc. -->
+            <section class="faq" id="faq">
+                <div class="animate-on-scroll">
+                    <div class="section-label">FAQ</div>
+                    <h2 class="section-title">Common questions</h2>
+                </div>
+                <details class="animate-on-scroll">
+                    <summary>Is this the same as Avro Keyboard for Mac?</summary>
+                    <p>
+                        Lekho is a spiritual successor to iAvro and the original Avro Keyboard by OmicronLab.
+                        Avro Keyboard was discontinued for macOS, and iAvro stopped working on modern macOS
+                        versions (Ventura, Sonoma, Sequoia). Lekho uses the same Avro Phonetic transliteration
+                        rules and works natively on Apple Silicon Macs (M1, M2, M3, M4, M5).
+                    </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>Does it work on MacBook Air / MacBook Pro with M4 or M5?</summary>
+                    <p>
+                        Yes. Lekho runs natively on all Apple Silicon Macs — MacBook Air, MacBook Pro,
+                        iMac, Mac Mini, Mac Studio, and Mac Pro with any M-series chip (M1, M2, M3, M4, M5
+                        and future chips).
+                    </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>How is this different from the macOS built-in Bengali keyboard?</summary>
+                    <p>
+                        The macOS built-in Bengali input uses Apple's own layout, not Avro Phonetic rules.
+                        If you're used to typing Bangla with Avro phonetics — like on Windows with Avro
+                        Keyboard, or on Linux with OpenBangla Keyboard — Lekho will feel familiar. Same
+                        transliteration style, plus a 150k-word dictionary with smart suggestions.
+                    </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>Is Lekho free? Is it open source?</summary>
+                    <p>
+                        Yes, completely free — no ads, no subscription, no sign-up. Lekho is open source
+                        under the MPL-2.0 license. The transliteration engine is
+                        <a href="https://github.com/OpenBangla/riti" target="_blank" rel="noopener noreferrer">OpenBangla's riti</a>,
+                        the same proven engine behind OpenBangla Keyboard on Linux.
+                    </p>
+                </details>
+            </section>
         </main>
         <!-- FIX: footer moved outside <main> -->
         <footer>
             <p>
                 Maintained by
-                <a
-                    href="https://github.com/ARahim3"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                <a href="https://github.com/ARahim3" target="_blank" rel="noopener noreferrer"
                     >Abdur Rahim</a
                 >
                 · Powered by
-                <a
-                    href="https://github.com/OpenBangla/riti"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                <a href="https://github.com/OpenBangla/riti" target="_blank" rel="noopener noreferrer"
                     >OpenBangla's riti engine</a
                 >
                 · Not affiliated with OmicronLab
             </p>
             <div class="footer-links">
-                <a
-                    href="https://github.com/ARahim3/Lekho"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                <a href="https://github.com/ARahim3/Lekho" target="_blank" rel="noopener noreferrer"
                     >GitHub</a
                 >
                 <a
@@ -2016,10 +2094,7 @@
                     rel="noopener noreferrer"
                     >Report Bug</a
                 >
-                <a
-                    href="https://arahim3.github.io"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                <a href="https://arahim3.github.io" target="_blank" rel="noopener noreferrer"
                     >arahim3.github.io</a
                 >
             </div>
@@ -2119,14 +2194,8 @@
                 const demo = demos[currentDemo];
                 if (isTyping) {
                     if (charIndex <= demo.typed.length) {
-                        typedEl.textContent = demo.typed.substring(
-                            0,
-                            charIndex,
-                        );
-                        outputEl.textContent = getOutputForTyped(
-                            demo,
-                            charIndex,
-                        );
+                        typedEl.textContent = demo.typed.substring(0, charIndex);
+                        outputEl.textContent = getOutputForTyped(demo, charIndex);
                         charIndex++;
                         setTimeout(typeNext, 55 + Math.random() * 40);
                     } else {
@@ -2138,14 +2207,8 @@
                 } else {
                     if (charIndex > 0) {
                         charIndex--;
-                        typedEl.textContent = demo.typed.substring(
-                            0,
-                            charIndex,
-                        );
-                        outputEl.textContent = getOutputForTyped(
-                            demo,
-                            charIndex,
-                        );
+                        typedEl.textContent = demo.typed.substring(0, charIndex);
+                        outputEl.textContent = getOutputForTyped(demo, charIndex);
                         setTimeout(typeNext, 18);
                     } else {
                         currentDemo = (currentDemo + 1) % demos.length;
