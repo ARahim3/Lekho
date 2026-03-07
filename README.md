@@ -1,5 +1,9 @@
 # Lekho (লেখো) — Avro Phonetic Bangla Keyboard for macOS
 
+<div align="center">
+  <img src="./docs/preview.png" alt="Lekho Keyboard Banner" width="100%">
+</div>
+
 **The only working native Avro Phonetic keyboard for modern macOS and Apple Silicon.**
 
 Lekho brings Avro Phonetic-style Bangla (Bengali) typing back to the Mac — natively on Apple Silicon (M1, M2, M3, M4, M5). If you used Avro Keyboard on Windows, iAvro on older macOS, or OpenBangla Keyboard on Linux, Lekho is your Mac equivalent.
@@ -33,7 +37,7 @@ Lekho fills this gap. It's a native macOS input method that works in every app �
 
 1. Download the latest `.dmg` from [Releases](https://github.com/ARahim3/Lekho/releases/latest)
 2. Open the DMG and double-click **Install Lekho.pkg**
-3. Log out and log back in (first time only — macOS needs this to discover new input methods)
+3. **⚠️ IMPORTANT:** Log out of your Mac and log back in. *(First time only — macOS requires this to discover new custom input methods).*
 4. Go to **System Settings → Keyboard → Input Sources → Edit**, click **+**, find **Lekho**, and add it
 5. Use Globe key or Ctrl+Space to switch to Bangla
 
@@ -70,6 +74,11 @@ Swift (InputMethodKit)  ←→  Rust Engine (riti) via C FFI
 - **Rust engine** (`engine/`) — wraps [OpenBangla/riti](https://github.com/OpenBangla/riti), compiled as a static library
 - **Swift IMK layer** (`Lekho/`) — subclasses `IMKInputController`, handles key events, candidate window, and text commits
 - **No Xcode project** — built with `swiftc` + `cargo` + shell scripts
+
+## Contributing
+
+Contributions are highly welcome! Whether it's reporting a bug, suggesting a feature, or submitting a pull request to improve the Swift or Rust codebases, feel free to get involved.
+
 
 ## Credits
 
