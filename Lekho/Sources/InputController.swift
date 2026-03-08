@@ -12,8 +12,6 @@ class LekhoInputController: IMKInputController {
     private var selectedIndex: UInt = 0
     private var candidatePanel: CandidatePanel?
     private var lastKnownCursorRect: NSRect = .zero
-    /// When true, composedString returns the selected candidate text instead of pre-edit text
-    private var showingCandidate: Bool = false
 
     /// Bengali digits ০-৯ indexed by 0-9
     private static let bengaliDigits: [Character] = [
@@ -202,8 +200,7 @@ class LekhoInputController: IMKInputController {
                 let length = currentSuggestion != nil ? riti_suggestion_get_length(currentSuggestion) : 0
                 if length > 0 {
                     selectedIndex = (selectedIndex + 1) % UInt(length)
-                    showingCandidate = true
-                    updateComposition()
+                    updateMarkedText(client: client)
                     candidatePanel?.selectCandidate(at: Int(selectedIndex))
                 }
                 return true
@@ -215,8 +212,7 @@ class LekhoInputController: IMKInputController {
                 let length = currentSuggestion != nil ? riti_suggestion_get_length(currentSuggestion) : 0
                 if length > 0 {
                     selectedIndex = selectedIndex == 0 ? UInt(length - 1) : selectedIndex - 1
-                    showingCandidate = true
-                    updateComposition()
+                    updateMarkedText(client: client)
                     candidatePanel?.selectCandidate(at: Int(selectedIndex))
                 }
                 return true
@@ -243,7 +239,6 @@ class LekhoInputController: IMKInputController {
         let ritiModifier: UInt8 = modifiers.contains(.shift) ? UInt8(MODIFIER_SHIFT) : 0
 
         // Get suggestion from engine
-        showingCandidate = false
         freeSuggestion()
         currentSuggestion = riti_get_suggestion_for_key(
             engineCtx,
@@ -342,7 +337,6 @@ class LekhoInputController: IMKInputController {
         )
 
         selectedIndex = 0
-        showingCandidate = false
         freeSuggestion()
         hideCandidates()
     }
@@ -589,35 +583,6 @@ class LekhoInputController: IMKInputController {
         if let suggestion = currentSuggestion {
             riti_suggestion_free(suggestion)
             currentSuggestion = nil
-        }
-    }
-
-    // MARK: - Composed string (system queries this for marked text display)
-
-    override func composedString(_ sender: Any!) -> Any! {
-        guard let suggestion = currentSuggestion,
-              !riti_suggestion_is_empty(suggestion) else {
-            return "" as NSString
-        }
-
-        let length = riti_suggestion_get_length(suggestion)
-        if length == 0 { return "" as NSString }
-        let safeIndex = min(selectedIndex, length - 1)
-
-        if showingCandidate {
-            // During navigation: show the actual candidate text
-            let ptr = riti_suggestion_get_suggestion(suggestion, safeIndex)
-            guard let ptr = ptr else { return "" as NSString }
-            let text = String(cString: ptr)
-            riti_string_free(ptr)
-            return text as NSString
-        } else {
-            // During typing: show the pre-edit text
-            let ptr = riti_suggestion_get_pre_edit_text(suggestion, safeIndex)
-            guard let ptr = ptr else { return "" as NSString }
-            let text = String(cString: ptr)
-            riti_string_free(ptr)
-            return text as NSString
         }
     }
 
