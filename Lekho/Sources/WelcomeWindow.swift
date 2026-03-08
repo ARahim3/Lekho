@@ -78,6 +78,9 @@ class GettingStartedView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     private func setupUI() {
+        // Check for Update button at the bottom
+        setupCheckForUpdateButton()
+
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
@@ -87,7 +90,7 @@ class GettingStartedView: NSView {
             scrollView.topAnchor.constraint(equalTo: topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -40),
         ])
 
         let textView = NSTextView()
@@ -327,6 +330,106 @@ class GettingStartedView: NSView {
                 ]))
 
         return result
+    }
+
+    private func setupCheckForUpdateButton() {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(container)
+
+        let button = NSButton(title: "Check for Update", target: self, action: #selector(checkForUpdate))
+        button.bezelStyle = .rounded
+        button.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(button)
+
+        NSLayoutConstraint.activate([
+            container.leadingAnchor.constraint(equalTo: leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
+            container.heightAnchor.constraint(equalToConstant: 32),
+            button.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            button.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        ])
+    }
+
+    @objc private func checkForUpdate() {
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+        let url = URL(string: "https://api.github.com/repos/ARahim3/Lekho/releases/latest")!
+
+        var request = URLRequest(url: url)
+        request.setValue("Lekho/\(currentVersion)", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 10
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.showUpdateAlert(
+                        title: "Connection Error",
+                        message: "Could not check for updates. Please check your internet connection.\n\n\(error.localizedDescription)"
+                    )
+                    return
+                }
+
+                guard let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let tagName = json["tag_name"] as? String else {
+                    self.showUpdateAlert(
+                        title: "Check Failed",
+                        message: "Could not read release information from GitHub."
+                    )
+                    return
+                }
+
+                // Strip leading "v" if present (e.g. "v0.2.0" → "0.2.0")
+                let latestVersion = tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
+
+                if self.isVersion(latestVersion, newerThan: currentVersion) {
+                    let htmlURL = json["html_url"] as? String ?? "https://github.com/ARahim3/Lekho/releases/latest"
+                    self.showUpdateAvailableAlert(latestVersion: latestVersion, downloadURL: htmlURL)
+                } else {
+                    self.showUpdateAlert(
+                        title: "You\u{2019}re Up to Date",
+                        message: "Lekho \(currentVersion) is the latest version."
+                    )
+                }
+            }
+        }.resume()
+    }
+
+    private func isVersion(_ a: String, newerThan b: String) -> Bool {
+        let aParts = a.split(separator: ".").compactMap { Int($0) }
+        let bParts = b.split(separator: ".").compactMap { Int($0) }
+        for i in 0..<max(aParts.count, bParts.count) {
+            let aVal = i < aParts.count ? aParts[i] : 0
+            let bVal = i < bParts.count ? bParts[i] : 0
+            if aVal > bVal { return true }
+            if aVal < bVal { return false }
+        }
+        return false
+    }
+
+    private func showUpdateAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    private func showUpdateAvailableAlert(latestVersion: String, downloadURL: String) {
+        let alert = NSAlert()
+        alert.messageText = "Update Available"
+        alert.informativeText = "Lekho \(latestVersion) is available. You are currently running \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Download")
+        alert.addButton(withTitle: "Later")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            if let url = URL(string: downloadURL) {
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
 }
 

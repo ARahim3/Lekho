@@ -8,7 +8,7 @@ let kConnectionName = "com.lekho.inputmethod.Lekho_Connection"
 var server: IMKServer!
 
 // Build identifier — check Console.app for "Lekho" to verify which build is running
-let lekhoBuildId = "build-20260217c"
+let lekhoBuildId = "build-20260308a"
 NSLog("Lekho: starting %@", lekhoBuildId)
 
 autoreleasepool {

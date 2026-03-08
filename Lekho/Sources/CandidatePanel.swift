@@ -4,6 +4,9 @@ class CandidatePanel {
     private var panel: NSPanel?
     private var contentView: CandidateView?
 
+    /// Called when user clicks a candidate. Parameter is the candidate index.
+    var onCandidateSelected: ((Int) -> Void)?
+
     func show(candidates: [String], auxiliaryText: String, selectedIndex: Int, cursorRect: NSRect) {
         if panel == nil {
             createPanel()
@@ -73,6 +76,9 @@ class CandidatePanel {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         let contentView = CandidateView()
+        contentView.onCandidateClicked = { [weak self] index in
+            self?.onCandidateSelected?(index)
+        }
         panel.contentView = contentView
 
         self.panel = panel
@@ -87,6 +93,9 @@ class CandidateView: NSView {
     private var auxiliaryText: String = ""
     private var selectedIndex: Int = 0
     private var scrollOffset: Int = 0
+
+    /// Called when user clicks a candidate row. Parameter is the candidate index.
+    var onCandidateClicked: ((Int) -> Void)?
 
     private let padding: CGFloat = 6
     private let rowHeight: CGFloat = 24
@@ -240,5 +249,39 @@ class CandidateView: NSView {
         path.close()
         color.setFill()
         path.fill()
+    }
+
+    // MARK: - Mouse handling
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if let index = candidateIndex(at: point) {
+            selectedIndex = index
+            adjustScroll()
+            needsDisplay = true
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if let index = candidateIndex(at: point), index == selectedIndex {
+            onCandidateClicked?(index)
+        }
+    }
+
+    /// Returns the candidate index at the given point, or nil if outside candidate rows.
+    private func candidateIndex(at point: NSPoint) -> Int? {
+        let topOfCandidates = bounds.height - auxHeight - padding
+        let clickOffset = topOfCandidates - point.y
+        guard clickOffset >= 0 else { return nil }
+
+        let rowIndex = Int(clickOffset / rowHeight)
+        let candidateIndex = scrollOffset + rowIndex
+        guard candidateIndex >= 0 && candidateIndex < candidates.count else { return nil }
+        return candidateIndex
     }
 }

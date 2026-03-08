@@ -12,6 +12,14 @@ class LekhoInputController: IMKInputController {
     private var selectedIndex: UInt = 0
     private var candidatePanel: CandidatePanel?
     private var lastKnownCursorRect: NSRect = .zero
+    /// When true, composedString returns the selected candidate text instead of pre-edit text
+    private var showingCandidate: Bool = false
+
+    /// Bengali digits ০-৯ indexed by 0-9
+    private static let bengaliDigits: [Character] = [
+        "\u{09E6}", "\u{09E7}", "\u{09E8}", "\u{09E9}", "\u{09EA}",
+        "\u{09EB}", "\u{09EC}", "\u{09ED}", "\u{09EE}", "\u{09EF}",
+    ]
 
     // MARK: - Lifecycle
 
@@ -161,6 +169,20 @@ class LekhoInputController: IMKInputController {
             return false
         }
 
+        // Handle digit keys: if no active session, insert Bengali digit directly
+        if !riti_context_ongoing_input_session(engineCtx),
+           let chars = event.characters,
+           let digit = chars.first,
+           digit >= "0" && digit <= "9" {
+            let digitValue = Int(String(digit))!
+            let bengaliDigit = String(LekhoInputController.bengaliDigits[digitValue])
+            client.insertText(
+                bengaliDigit as NSString,
+                replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
+            )
+            return true
+        }
+
         // Handle number keys 1-9 for candidate selection (when candidates are showing)
         if riti_context_ongoing_input_session(engineCtx),
            let chars = event.characters,
@@ -180,7 +202,8 @@ class LekhoInputController: IMKInputController {
                 let length = currentSuggestion != nil ? riti_suggestion_get_length(currentSuggestion) : 0
                 if length > 0 {
                     selectedIndex = (selectedIndex + 1) % UInt(length)
-                    updateMarkedText(client: client)
+                    showingCandidate = true
+                    updateComposition()
                     candidatePanel?.selectCandidate(at: Int(selectedIndex))
                 }
                 return true
@@ -192,7 +215,8 @@ class LekhoInputController: IMKInputController {
                 let length = currentSuggestion != nil ? riti_suggestion_get_length(currentSuggestion) : 0
                 if length > 0 {
                     selectedIndex = selectedIndex == 0 ? UInt(length - 1) : selectedIndex - 1
-                    updateMarkedText(client: client)
+                    showingCandidate = true
+                    updateComposition()
                     candidatePanel?.selectCandidate(at: Int(selectedIndex))
                 }
                 return true
@@ -219,6 +243,7 @@ class LekhoInputController: IMKInputController {
         let ritiModifier: UInt8 = modifiers.contains(.shift) ? UInt8(MODIFIER_SHIFT) : 0
 
         // Get suggestion from engine
+        showingCandidate = false
         freeSuggestion()
         currentSuggestion = riti_get_suggestion_for_key(
             engineCtx,
@@ -317,6 +342,7 @@ class LekhoInputController: IMKInputController {
         )
 
         selectedIndex = 0
+        showingCandidate = false
         freeSuggestion()
         hideCandidates()
     }
@@ -365,22 +391,74 @@ class LekhoInputController: IMKInputController {
             }
         }
 
-        // Try 4: reuse last known good position (from a previous keystroke or app)
+        // Try 4: Accessibility API fallback (works for Chrome and other apps with broken firstRect)
+        if let axRect = getAccessibilityCursorRect(), isValidCursorRect(axRect) {
+            lastKnownCursorRect = axRect
+            return axRect
+        }
+
+        // Try 5: reuse last known good position (from a previous keystroke or app)
         if isValidCursorRect(lastKnownCursorRect) {
             return lastKnownCursorRect
         }
 
-        // Try 5: position near the frontmost window (better than mouse for Chrome etc.)
+        // Try 6: position near the frontmost window
         let fallback = getFrontWindowFallbackRect()
         lastKnownCursorRect = fallback
         return fallback
     }
 
+    /// Try to get cursor position via the Accessibility API.
+    /// Works for Chrome and other apps where IMKTextInput.firstRect returns bad coordinates.
+    /// Returns nil if Accessibility permission is not granted or the query fails.
+    private func getAccessibilityCursorRect() -> NSRect? {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication else { return nil }
+        let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
+
+        var focusedValue: AnyObject?
+        guard AXUIElementCopyAttributeValue(
+            appElement, kAXFocusedUIElementAttribute as CFString, &focusedValue
+        ) == .success else { return nil }
+
+        let focused = focusedValue as! AXUIElement
+
+        // Get selected text range
+        var rangeValue: AnyObject?
+        guard AXUIElementCopyAttributeValue(
+            focused, kAXSelectedTextRangeAttribute as CFString, &rangeValue
+        ) == .success else { return nil }
+
+        // Get bounds for the selected text range
+        var boundsValue: AnyObject?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            focused, kAXBoundsForRangeParameterizedAttribute as CFString,
+            rangeValue!, &boundsValue
+        ) == .success else { return nil }
+
+        var cgRect = CGRect.zero
+        guard AXValueGetValue(boundsValue as! AXValue, .cgRect, &cgRect) else { return nil }
+
+        // Convert CG coordinates (top-left origin) to NS coordinates (bottom-left origin)
+        // Use the primary screen height for conversion (screen[0] has menu bar)
+        guard let primaryScreenHeight = NSScreen.screens.first?.frame.height else { return nil }
+        let nsY = primaryScreenHeight - cgRect.origin.y - cgRect.size.height
+        return NSRect(x: cgRect.origin.x, y: nsY, width: cgRect.size.width, height: cgRect.size.height)
+    }
+
     /// Validate that a cursor rect is within the frontmost app's window.
-    /// Catches Chrome-like apps that return (0, 0) or other bogus positions.
+    /// Catches Chrome-like apps that return garbage/uninitialized values.
     private func isValidCursorRect(_ rect: NSRect) -> Bool {
-        // Reject zero origin
-        if rect.origin.x == 0 && rect.origin.y == 0 { return false }
+        // Reject garbage/uninitialized memory (subnormal doubles like 1.6e-314)
+        if rect.origin.x.isSubnormal || rect.origin.y.isSubnormal ||
+           rect.size.width.isSubnormal || rect.size.height.isSubnormal {
+            return false
+        }
+
+        // Reject zero/near-zero origin (no real cursor sits at the screen corner)
+        if rect.origin.x < 1 && rect.origin.y < 1 { return false }
+
+        // Reject zero-height rects (a real cursor line has height > 0)
+        if rect.size.height < 1 { return false }
 
         // Must be within some screen
         let onScreen = NSScreen.screens.contains { $0.frame.contains(rect.origin) }
@@ -481,6 +559,11 @@ class LekhoInputController: IMKInputController {
 
         if candidatePanel == nil {
             candidatePanel = CandidatePanel()
+            candidatePanel?.onCandidateSelected = { [weak self] index in
+                guard let self = self,
+                      let client = self.client() as (any IMKTextInput)? else { return }
+                self.commitCandidate(at: index, client: client)
+            }
         }
 
         let prevIndex = riti_suggestion_previously_selected_index(suggestion)
@@ -506,6 +589,35 @@ class LekhoInputController: IMKInputController {
         if let suggestion = currentSuggestion {
             riti_suggestion_free(suggestion)
             currentSuggestion = nil
+        }
+    }
+
+    // MARK: - Composed string (system queries this for marked text display)
+
+    override func composedString(_ sender: Any!) -> Any! {
+        guard let suggestion = currentSuggestion,
+              !riti_suggestion_is_empty(suggestion) else {
+            return "" as NSString
+        }
+
+        let length = riti_suggestion_get_length(suggestion)
+        if length == 0 { return "" as NSString }
+        let safeIndex = min(selectedIndex, length - 1)
+
+        if showingCandidate {
+            // During navigation: show the actual candidate text
+            let ptr = riti_suggestion_get_suggestion(suggestion, safeIndex)
+            guard let ptr = ptr else { return "" as NSString }
+            let text = String(cString: ptr)
+            riti_string_free(ptr)
+            return text as NSString
+        } else {
+            // During typing: show the pre-edit text
+            let ptr = riti_suggestion_get_pre_edit_text(suggestion, safeIndex)
+            guard let ptr = ptr else { return "" as NSString }
+            let text = String(cString: ptr)
+            riti_string_free(ptr)
+            return text as NSString
         }
     }
 

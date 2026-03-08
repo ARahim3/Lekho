@@ -60,8 +60,9 @@ mkdir -p "$APP_BUNDLE/Contents/Resources/data"
 # Copy Info.plist
 cp "$SWIFT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 
-# Copy icon
+# Copy icons
 cp "$SWIFT_DIR/Resources/icon.tiff" "$APP_BUNDLE/Contents/Resources/icon.tiff"
+cp "$SWIFT_DIR/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 # Copy data files
 cp "$PROJECT_ROOT/data/"*.json "$APP_BUNDLE/Contents/Resources/data/"
