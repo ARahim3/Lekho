@@ -8,8 +8,16 @@ let kConnectionName = "com.lekho.inputmethod.Lekho_Connection"
 var server: IMKServer!
 
 // Build identifier — check Console.app for "Lekho" to verify which build is running
-let lekhoBuildId = "build-20260308a"
+let lekhoBuildId = "build-20260309a"
 NSLog("Lekho: starting %@", lekhoBuildId)
+
+// Register menu bar icon as template BEFORE IMKServer loads it —
+// macOS auto-inverts template images for dark menu bars (black ↔ white)
+if let iconPath = Bundle.main.path(forResource: "iconTemplate", ofType: "tiff"),
+   let icon = NSImage(contentsOfFile: iconPath) {
+    icon.isTemplate = true
+    icon.setName("iconTemplate")
+}
 
 autoreleasepool {
     server = IMKServer(name: kConnectionName,

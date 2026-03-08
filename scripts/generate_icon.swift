@@ -1,4 +1,5 @@
-// Generate a simple menu bar icon with Bengali character "অ"
+// Generate a template menu bar icon with Bengali character "অ"
+// Template images: macOS auto-inverts for dark mode (black → white)
 import Cocoa
 
 let size = NSSize(width: 16, height: 16)
@@ -17,9 +18,12 @@ let image = NSImage(size: size, flipped: false) { rect in
     return true
 }
 
+// Mark as template so macOS auto-inverts for dark menu bars
+image.isTemplate = true
+
 let tiffData = image.tiffRepresentation!
 let outputPath = CommandLine.arguments.count > 1
     ? CommandLine.arguments[1]
-    : "icon.tiff"
+    : "iconTemplate.tiff"
 try! tiffData.write(to: URL(fileURLWithPath: outputPath))
 print("Icon written to \(outputPath)")
