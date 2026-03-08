@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://arahim3.github.io/Lekho/sitemap.xml
