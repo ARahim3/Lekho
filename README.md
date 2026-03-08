@@ -37,6 +37,7 @@ Lekho fills this gap. It's a native macOS input method that works in every app �
 
 1. Download the latest `.dmg` from [Releases](https://github.com/ARahim3/Lekho/releases/latest)
 2. Open the DMG and double-click **Install Lekho.pkg**
+   > **macOS may block the installer** since Lekho isn't signed with an Apple Developer ID yet. If that happens: go to **System Settings → Privacy & Security**, scroll to the bottom, and click **"Allow Anyway"** next to the Lekho message. Then try opening the .pkg again.
 3. **⚠️ IMPORTANT:** Log out of your Mac and log back in. *(First time only — macOS requires this to discover new custom input methods).*
 4. Go to **System Settings → Keyboard → Input Sources → Edit**, click **+**, find **Lekho**, and add it
 5. Use Globe key or Ctrl+Space to switch to Bangla
