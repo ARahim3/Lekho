@@ -27,7 +27,8 @@ Lekho fills this gap. It's a native macOS input method that works in every app �
 
 - **Avro Phonetic typing** — type `ami banglay gan gai` → আমি বাংলায় গান গাই
 - **150k word dictionary** with smart suggestions and autocorrect
-- **Native Apple Silicon** — ~2.6 MB, instant startup, zero CPU when idle
+- **Smart emoji suggestions** — type কান্না and get 😢, বাংলাদেশ and get 🇧🇩, right in the candidate panel
+- **Native Apple Silicon** — ~2.7 MB, instant startup, zero CPU when idle
 - **Works on all Apple Silicon Macs** — MacBook Air, MacBook Pro, iMac, Mac Mini, Mac Studio (M1/M2/M3/M4/M5)
 - **Works everywhere** — built with Apple's InputMethodKit framework
 - **Completely offline** — no internet, no data collection, no telemetry
