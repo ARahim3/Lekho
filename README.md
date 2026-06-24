@@ -28,7 +28,7 @@ Lekho is built natively for Apple Silicon — no Rosetta required, future-proof 
 - **Avro Phonetic typing** — type `ami banglay gan gai` → আমি বাংলায় গান গাই
 - **150k word dictionary** with smart suggestions and autocorrect
 - **Smart emoji suggestions** — type কান্না and get 😢, বাংলাদেশ and get 🇧🇩, right in the candidate panel
-- **Optional phonetic-only mode** — disable suggestions, autocorrect, and emoji entirely if you want pure character-by-character control
+- **Three typing modes** — *Phonetic-first* (default: your exact spelling by default with the suggestion list still one keypress away), *Smart* (suggestions, autocorrect, and emoji pick the word for you), or *Phonetic-only* (pure character-by-character control, no popup). Switch anytime in Settings.
 - **Native Apple Silicon** — ~2.7 MB, instant startup, zero CPU when idle
 - **Works on all Apple Silicon Macs** — MacBook Air, MacBook Pro, iMac, Mac Mini, Mac Studio (M1/M2/M3/M4/M5)
 - **Works everywhere** — built with Apple's InputMethodKit framework
@@ -67,6 +67,20 @@ To update later: `brew upgrade --cask lekho`. To uninstall: `brew uninstall --ca
 3. Go to **System Settings → Keyboard → Input Sources → Edit**, click **+**, find **Lekho**, and add it
    > If Lekho doesn't appear in the list, log out of your Mac and log back in — macOS sometimes needs this to discover new input methods on first install.
 4. Use Globe key or Ctrl+Space to switch to Bangla
+
+## Typing modes
+
+Open the **Settings** tab in the Lekho window to pick how typing behaves:
+
+<p align="center">
+  <img src="./docs/settings.png" alt="Lekho Settings tab — Phonetic-first, Smart suggestions, and Phonetic-only modes" width="640">
+</p>
+
+- **Phonetic-first** *(default)* — your exact phonetic spelling is committed by default, but the suggestion list is still one keypress away. Lekho remembers the words you deliberately pick.
+- **Smart suggestions** — dictionary, autocorrect, and emoji pick the best-matching word when you press space.
+- **Phonetic-only** — pure transliteration, no suggestion popup, autocorrect, or emoji.
+
+Changes apply immediately — no restart needed.
 
 ## Requirements
 

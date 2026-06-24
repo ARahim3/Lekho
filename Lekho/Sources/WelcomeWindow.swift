@@ -37,6 +37,7 @@ class WelcomeWindowController {
 
 class WelcomeTabView: NSView {
     private let tabView = NSTabView()
+    private let segmented = NSSegmentedControl()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -46,98 +47,347 @@ class WelcomeTabView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     private func setupTabs() {
+        // Hide NSTabView's own (flat) tabs; we drive selection with a clearly
+        // clickable segmented control instead.
         tabView.translatesAutoresizingMaskIntoConstraints = false
+        tabView.tabViewType = .noTabsNoBorder
+
+        let items: [(String, String, NSView)] = [
+            ("start", "Getting Started", GettingStartedView()),
+            ("layout", "Avro Layout", LayoutWebView()),
+            ("settings", "Settings", SettingsView()),
+        ]
+        for (id, label, view) in items {
+            let item = NSTabViewItem(identifier: id)
+            item.label = label
+            item.view = view
+            tabView.addTabViewItem(item)
+        }
+
+        segmented.segmentCount = items.count
+        for (index, item) in items.enumerated() {
+            segmented.setLabel(item.1, forSegment: index)
+            segmented.setWidth(0, forSegment: index)  // auto-size to label
+        }
+        segmented.segmentStyle = .automatic
+        segmented.trackingMode = .selectOne
+        segmented.controlSize = .large
+        segmented.selectedSegment = 0
+        segmented.target = self
+        segmented.action = #selector(segmentChanged(_:))
+        segmented.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(segmented)
         addSubview(tabView)
+
         NSLayoutConstraint.activate([
-            tabView.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            tabView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            tabView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-            tabView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+            segmented.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+            segmented.centerXAnchor.constraint(equalTo: centerXAnchor),
+
+            tabView.topAnchor.constraint(equalTo: segmented.bottomAnchor, constant: 10),
+            tabView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            tabView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            tabView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+    }
 
-        let gettingStartedTab = NSTabViewItem(identifier: "start")
-        gettingStartedTab.label = "Getting Started"
-        gettingStartedTab.view = GettingStartedView()
-        tabView.addTabViewItem(gettingStartedTab)
-
-        let layoutTab = NSTabViewItem(identifier: "layout")
-        layoutTab.label = "Avro Layout"
-        layoutTab.view = LayoutWebView()
-        tabView.addTabViewItem(layoutTab)
-
-        let settingsTab = NSTabViewItem(identifier: "settings")
-        settingsTab.label = "Settings"
-        settingsTab.view = SettingsView()
-        tabView.addTabViewItem(settingsTab)
+    @objc private func segmentChanged(_ sender: NSSegmentedControl) {
+        tabView.selectTabViewItem(at: sender.selectedSegment)
     }
 }
 
 // MARK: - Settings Tab
 
+// MARK: - Shared welcome-window UI
+
+/// Visual helpers shared across the welcome window's tabs.
+enum WelcomeUI {
+    static let pageInset: CGFloat = 28
+    static let accentTint: CGFloat = 0.12
+
+    /// Small uppercase section header (macOS grouped-settings style).
+    static func sectionHeader(_ text: String) -> NSTextField {
+        let label = NSTextField(labelWithString: "")
+        let attr = NSMutableAttributedString(string: text.uppercased())
+        attr.addAttributes(
+            [
+                .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .kern: 0.6,
+            ],
+            range: NSRange(location: 0, length: attr.length))
+        label.attributedStringValue = attr
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }
+
+    /// A monospace "key" chip used in the shortcut/layout lists.
+    static func keyChip(_ text: String) -> NSView {
+        let chip = RoundedTintView(
+            cornerRadius: 5,
+            fill: { NSColor.labelColor.withAlphaComponent(0.07) },
+            border: { NSColor.separatorColor })
+        let label = NSTextField(labelWithString: text)
+        label.font = NSFont.monospacedSystemFont(ofSize: 11.5, weight: .medium)
+        label.textColor = .labelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        chip.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: chip.leadingAnchor, constant: 7),
+            label.trailingAnchor.constraint(equalTo: chip.trailingAnchor, constant: -7),
+            label.topAnchor.constraint(equalTo: chip.topAnchor, constant: 2),
+            label.bottomAnchor.constraint(equalTo: chip.bottomAnchor, constant: -2),
+        ])
+        return chip
+    }
+}
+
+/// A rounded, layer-backed view whose fill/border colors resolve per-appearance.
+/// `fill`/`border` are closures so semantic NSColors are re-resolved on light/dark
+/// changes (CGColors don't auto-update).
+class RoundedTintView: NSView {
+    private let fillColor: () -> NSColor
+    private let borderColor: (() -> NSColor)?
+
+    init(cornerRadius: CGFloat, borderWidth: CGFloat = 1,
+         fill: @escaping () -> NSColor, border: (() -> NSColor)? = nil) {
+        self.fillColor = fill
+        self.borderColor = border
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = cornerRadius
+        layer?.borderWidth = border == nil ? 0 : borderWidth
+        translatesAutoresizingMaskIntoConstraints = false
+        applyColors()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyColors()
+    }
+
+    func refreshColors() { applyColors() }
+
+    private func applyColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance { [self] in
+            layer?.backgroundColor = fillColor().cgColor
+            if let borderColor { layer?.borderColor = borderColor().cgColor }
+        }
+    }
+}
+
+/// A rounded container that wraps arbitrary content with inset padding.
+final class CardContainer: RoundedTintView {
+    init(content: NSView, insets: NSEdgeInsets = NSEdgeInsets(top: 12, left: 16, bottom: 12, right: 16)) {
+        super.init(
+            cornerRadius: 10,
+            fill: { .controlBackgroundColor.withAlphaComponent(0.6) },
+            border: { .separatorColor })
+        content.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: topAnchor, constant: insets.top),
+            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -insets.right),
+            content.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -insets.bottom),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError() }
+}
+
+/// Small accent "Recommended"-style badge.
+final class PillBadge: RoundedTintView {
+    init(text: String) {
+        super.init(
+            cornerRadius: 7,
+            fill: { .controlAccentColor.withAlphaComponent(0.15) })
+        setContentHuggingPriority(.required, for: .horizontal)
+        let label = NSTextField(labelWithString: text)
+        label.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
+        label.textColor = .controlAccentColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 7),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 2),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError() }
+}
+
+// MARK: - Settings Tab (selectable mode cards)
+
+/// A selectable typing-mode card: radio indicator + title (+ optional badge) +
+/// wrapping description. The whole card is clickable.
+final class ModeCard: NSView {
+    let mode: LekhoInputController.TypingMode
+    var onSelect: (() -> Void)?
+    var isSelected: Bool = false { didSet { updateSelection() } }
+
+    private let radio = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let descLabel = NSTextField(wrappingLabelWithString: "")
+
+    init(mode: LekhoInputController.TypingMode, title: String, description: String, recommended: Bool) {
+        self.mode = mode
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 10
+        layer?.borderWidth = 1
+        translatesAutoresizingMaskIntoConstraints = false
+
+        radio.translatesAutoresizingMaskIntoConstraints = false
+        radio.imageScaling = .scaleProportionallyUpOrDown
+
+        titleLabel.stringValue = title
+        titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.setContentHuggingPriority(.required, for: .horizontal)
+
+        descLabel.stringValue = description
+        descLabel.font = NSFont.systemFont(ofSize: 13)
+        descLabel.textColor = .secondaryLabelColor
+        descLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let titleRow = NSStackView(views: [titleLabel])
+        titleRow.orientation = .horizontal
+        titleRow.spacing = 8
+        titleRow.alignment = .centerY
+        if recommended { titleRow.addArrangedSubview(PillBadge(text: "Recommended")) }
+        titleRow.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(radio)
+        addSubview(titleRow)
+        addSubview(descLabel)
+
+        NSLayoutConstraint.activate([
+            radio.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            radio.topAnchor.constraint(equalTo: topAnchor, constant: 17),
+            radio.widthAnchor.constraint(equalToConstant: 16),
+            radio.heightAnchor.constraint(equalToConstant: 16),
+
+            titleRow.leadingAnchor.constraint(equalTo: radio.trailingAnchor, constant: 12),
+            titleRow.topAnchor.constraint(equalTo: topAnchor, constant: 16),
+            titleRow.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
+
+            descLabel.leadingAnchor.constraint(equalTo: titleRow.leadingAnchor),
+            descLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            descLabel.topAnchor.constraint(equalTo: titleRow.bottomAnchor, constant: 4),
+            descLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -16),
+        ])
+
+        addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(clicked)))
+        updateSelection()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func clicked() { onSelect?() }
+
+    private func updateSelection() {
+        let symbol = isSelected ? "largecircle.fill.circle" : "circle"
+        radio.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        radio.contentTintColor = isSelected ? .controlAccentColor : .tertiaryLabelColor
+        applyColors()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyColors()
+    }
+
+    private func applyColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance { [self] in
+            if isSelected {
+                layer?.borderColor = NSColor.controlAccentColor.cgColor
+                layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.12).cgColor
+            } else {
+                layer?.borderColor = NSColor.separatorColor.cgColor
+                layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.55).cgColor
+            }
+        }
+    }
+}
+
 class SettingsView: NSView {
-    private let phoneticOnlyCheckbox = NSButton(checkboxWithTitle: "Phonetic-only mode", target: nil, action: nil)
+    private var cards: [ModeCard] = []
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         setupUI()
     }
-
     required init?(coder: NSCoder) { fatalError() }
 
     private func setupUI() {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 24, left: 28, bottom: 24, right: 28)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        let header = WelcomeUI.sectionHeader("Typing mode")
+
+        let intro = NSTextField(wrappingLabelWithString:
+            "Choose how Lekho turns what you type into Bangla. You can switch anytime.")
+        intro.font = NSFont.systemFont(ofSize: 13)
+        intro.textColor = .secondaryLabelColor
+        intro.translatesAutoresizingMaskIntoConstraints = false
+
+        let cardStack = NSStackView()
+        cardStack.orientation = .vertical
+        cardStack.alignment = .leading
+        cardStack.spacing = 14
+        cardStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let current = LekhoInputController.currentTypingMode()
+        let modes: [(LekhoInputController.TypingMode, String, String, Bool)] = [
+            (.smart, "Smart suggestions",
+             "Dictionary, autocorrect, and emoji choose the best-matching word when you press space. Press a number, the arrow keys, or click to pick another.",
+             false),
+            (.phoneticFirst, "Phonetic-first",
+             "Your exact phonetic spelling is committed by default, but the suggestion list is still right there — reach for a dictionary word whenever you want one. Lekho remembers the words you deliberately pick.",
+             true),
+            (.phoneticOnly, "Phonetic-only",
+             "Pure transliteration with no suggestion popup, autocorrect, or emoji. Full control over every word — but no dictionary fixes for irregular spellings.",
+             false),
+        ]
+        for (mode, title, desc, recommended) in modes {
+            let card = ModeCard(mode: mode, title: title, description: desc, recommended: recommended)
+            card.isSelected = (mode == current)
+            card.onSelect = { [weak self] in self?.select(mode) }
+            cards.append(card)
+            cardStack.addArrangedSubview(card)
+            card.widthAnchor.constraint(equalTo: cardStack.widthAnchor).isActive = true
+        }
+
+        let content = NSStackView(views: [header, intro, cardStack])
+        content.orientation = .vertical
+        content.alignment = .leading
+        content.spacing = 6
+        content.setCustomSpacing(18, after: intro)
+        content.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(content)
+
+        let tip = NSTextField(wrappingLabelWithString:
+            "Changes apply immediately to new typing. Any word you were composing when you switch is discarded — just retype it.")
+        tip.font = NSFont.systemFont(ofSize: 11)
+        tip.textColor = .tertiaryLabelColor
+        tip.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(tip)
+
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor),
+            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: WelcomeUI.pageInset),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -WelcomeUI.pageInset),
+            content.topAnchor.constraint(equalTo: topAnchor, constant: 28),
+            cardStack.widthAnchor.constraint(equalTo: content.widthAnchor),
+            intro.widthAnchor.constraint(equalTo: content.widthAnchor),
+
+            tip.leadingAnchor.constraint(equalTo: leadingAnchor, constant: WelcomeUI.pageInset),
+            tip.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -WelcomeUI.pageInset),
+            tip.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -24),
         ])
-
-        // Section heading
-        let heading = NSTextField(labelWithString: "Typing")
-        heading.font = NSFont.systemFont(ofSize: 15, weight: .semibold)
-        heading.textColor = NSColor.controlAccentColor
-        stack.addArrangedSubview(heading)
-
-        stack.setCustomSpacing(12, after: heading)
-
-        // Checkbox
-        phoneticOnlyCheckbox.font = NSFont.systemFont(ofSize: 13, weight: .medium)
-        phoneticOnlyCheckbox.target = self
-        phoneticOnlyCheckbox.action = #selector(phoneticOnlyToggled(_:))
-        phoneticOnlyCheckbox.state = UserDefaults.standard.bool(forKey: LekhoInputController.phoneticOnlyModeKey) ? .on : .off
-        stack.addArrangedSubview(phoneticOnlyCheckbox)
-
-        // Description
-        let desc = NSTextField(wrappingLabelWithString:
-            "Convert typing directly to Bengali phonetics, with no suggestions popup, autocorrect, or emoji. " +
-            "Useful if you want full control over every word — but you'll lose dictionary fixes for irregular spellings.")
-        desc.font = NSFont.systemFont(ofSize: 12)
-        desc.textColor = NSColor.secondaryLabelColor
-        desc.preferredMaxLayoutWidth = 720
-        stack.addArrangedSubview(desc)
-
-        stack.setCustomSpacing(20, after: desc)
-
-        // Tip
-        let tipLabel = NSTextField(wrappingLabelWithString:
-            "Tip: Changes apply immediately to new typing. Any word you were composing when you toggled this will be discarded — just retype it.")
-        tipLabel.font = NSFont.systemFont(ofSize: 11)
-        tipLabel.textColor = NSColor.tertiaryLabelColor
-        tipLabel.preferredMaxLayoutWidth = 720
-        stack.addArrangedSubview(tipLabel)
     }
 
-    @objc private func phoneticOnlyToggled(_ sender: NSButton) {
-        let enabled = sender.state == .on
-        UserDefaults.standard.set(enabled, forKey: LekhoInputController.phoneticOnlyModeKey)
-        NotificationCenter.default.post(name: .lekhoPhoneticOnlyModeChanged, object: nil)
+    private func select(_ mode: LekhoInputController.TypingMode) {
+        for card in cards { card.isSelected = (card.mode == mode) }
+        UserDefaults.standard.set(mode.rawValue, forKey: LekhoInputController.typingModeKey)
+        NotificationCenter.default.post(name: .lekhoTypingModeChanged, object: nil)
     }
 }
 
@@ -152,7 +402,6 @@ class GettingStartedView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     private func setupUI() {
-        // Check for Update button at the bottom
         setupCheckForUpdateButton()
 
         let scrollView = NSScrollView()
@@ -164,246 +413,283 @@ class GettingStartedView: NSView {
             scrollView.topAnchor.constraint(equalTo: topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -40),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -44),
         ])
 
-        let textView = NSTextView()
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.drawsBackground = false
-        textView.textContainerInset = NSSize(width: 16, height: 16)
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
-        textView.textContainer?.widthTracksTextView = true
+        let doc = NSView()
+        doc.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.documentView = doc
 
-        let content = buildAttributedContent()
-        textView.textStorage?.setAttributedString(content)
+        let page = NSStackView()
+        page.orientation = .vertical
+        page.alignment = .leading
+        page.spacing = 10
+        page.translatesAutoresizingMaskIntoConstraints = false
+        doc.addSubview(page)
 
-        scrollView.documentView = textView
+        NSLayoutConstraint.activate([
+            doc.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+            doc.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+            doc.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
+            page.topAnchor.constraint(equalTo: doc.topAnchor, constant: 28),
+            page.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: WelcomeUI.pageInset),
+            page.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -WelcomeUI.pageInset),
+            page.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -28),
+        ])
+
+        // Hero
+        let hero = makeHero()
+        page.addArrangedSubview(hero)
+        page.setCustomSpacing(24, after: hero)
+
+        // Setup steps
+        let setupHeader = WelcomeUI.sectionHeader("Setup")
+        page.addArrangedSubview(setupHeader)
+        page.setCustomSpacing(8, after: setupHeader)
+
+        let steps: [(Int, String, String?)] = [
+            (1, "Log out and log back in", "Only if you just installed Lekho for the first time."),
+            (2, "Open System Settings \u{2192} Keyboard \u{2192} Input Sources", nil),
+            (3, "Click +, search \u{201C}Lekho\u{201D}, select it, and add it", nil),
+            (4, "Switch with the Globe key or Ctrl+Space", nil),
+        ]
+        let stepStack = NSStackView()
+        stepStack.orientation = .vertical
+        stepStack.alignment = .leading
+        stepStack.spacing = 12
+        stepStack.translatesAutoresizingMaskIntoConstraints = false
+        for (n, title, note) in steps {
+            let row = makeStepRow(number: n, title: title, note: note)
+            stepStack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stepStack.widthAnchor).isActive = true
+        }
+        addFullWidth(CardContainer(content: stepStack), to: page, spacingAfter: 22)
+
+        // How to type
+        let typeHeader = WelcomeUI.sectionHeader("How to type")
+        page.addArrangedSubview(typeHeader)
+        page.setCustomSpacing(8, after: typeHeader)
+
+        let shortcuts: [(String, String)] = [
+            ("ami \u{2192} \u{0986}\u{09AE}\u{09BF}", "Type in English, phonetically"),
+            ("Space", "Commit the highlighted suggestion"),
+            ("1\u{2013}9", "Pick a specific candidate from the list"),
+            ("\u{2191} \u{2193}", "Move through the candidate list"),
+            ("Backspace", "Delete the last character"),
+            ("Esc", "Cancel the current word"),
+        ]
+        let scStack = NSStackView()
+        scStack.orientation = .vertical
+        scStack.alignment = .leading
+        scStack.spacing = 10
+        scStack.translatesAutoresizingMaskIntoConstraints = false
+        for (key, desc) in shortcuts {
+            let row = makeShortcutRow(key: key, desc: desc)
+            scStack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: scStack.widthAnchor).isActive = true
+        }
+        addFullWidth(CardContainer(content: scStack), to: page, spacingAfter: 16)
+
+        // Tip
+        let tip = NSTextField(wrappingLabelWithString:
+            "You can close this window — the keyboard keeps running in the background. Open Lekho "
+            + "anytime to see this guide, or check the Avro Layout tab for the full key mapping.")
+        tip.font = NSFont.systemFont(ofSize: 12)
+        tip.textColor = .secondaryLabelColor
+        tip.translatesAutoresizingMaskIntoConstraints = false
+        addFullWidth(tip, to: page, spacingAfter: 26)
+
+        // Footer
+        addFullWidth(makeFooter(), to: page)
     }
 
-    private func buildAttributedContent() -> NSAttributedString {
-        let result = NSMutableAttributedString()
+    private func addFullWidth(_ view: NSView, to stack: NSStackView, spacingAfter: CGFloat? = nil) {
+        stack.addArrangedSubview(view)
+        view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        if let spacing = spacingAfter { stack.setCustomSpacing(spacing, after: view) }
+    }
 
-        let titleFont = NSFont.systemFont(ofSize: 22, weight: .bold)
-        let headingFont = NSFont.systemFont(ofSize: 15, weight: .semibold)
-        let bodyFont = NSFont.systemFont(ofSize: 13, weight: .regular)
-        let bodyColor = NSColor.labelColor
-        let secondaryColor = NSColor.secondaryLabelColor
-        let accentColor = NSColor.controlAccentColor
+    private func makeHero() -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 16
+        row.translatesAutoresizingMaskIntoConstraints = false
 
-        result.append(
-            NSAttributedString(
-                string: "Welcome to Lekho\n",
-                attributes: [
-                    .font: titleFont, .foregroundColor: bodyColor,
-                ]))
-        result.append(
-            NSAttributedString(
-                string: "Avro Phonetic Bengali Keyboard for macOS\n\n",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 14), .foregroundColor: secondaryColor,
-                ]))
+        let icon = NSImageView(image: NSApp.applicationIconImage)
+        icon.imageScaling = .scaleProportionallyUpOrDown
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.setContentHuggingPriority(.required, for: .horizontal)
+        NSLayoutConstraint.activate([
+            icon.widthAnchor.constraint(equalToConstant: 60),
+            icon.heightAnchor.constraint(equalToConstant: 60),
+        ])
 
-        result.append(
-            NSAttributedString(
-                string: "Setup\n",
-                attributes: [
-                    .font: headingFont, .foregroundColor: accentColor,
-                ]))
+        let title = NSTextField(labelWithString: "Welcome to Lekho")
+        title.font = NSFont.systemFont(ofSize: 24, weight: .bold)
+        let subtitle = NSTextField(labelWithString: "Avro Phonetic Bangla keyboard for macOS")
+        subtitle.font = NSFont.systemFont(ofSize: 13)
+        subtitle.textColor = .secondaryLabelColor
 
-        let steps = [
-            ("1.", "Log out and log back in", "(if you just installed for the first time)"),
-            ("2.", "Open System Settings \u{2192} Keyboard \u{2192} Input Sources", ""),
-            (
-                "3.", "Click  +  \u{2192} search \"Lekho\" \u{2192} select Lekho \u{2192} Add",
-                ""
-            ),
-            ("4.", "Use Globe key or Ctrl+Space to switch input methods", ""),
-        ]
+        let textCol = NSStackView(views: [title, subtitle])
+        textCol.orientation = .vertical
+        textCol.alignment = .leading
+        textCol.spacing = 2
 
-        for (num, step, note) in steps {
-            result.append(
-                NSAttributedString(
-                    string: "\n  \(num)  ",
-                    attributes: [
-                        .font: NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .bold),
-                        .foregroundColor: accentColor,
-                    ]))
-            result.append(
-                NSAttributedString(
-                    string: step,
-                    attributes: [
-                        .font: bodyFont, .foregroundColor: bodyColor,
-                    ]))
-            if !note.isEmpty {
-                result.append(
-                    NSAttributedString(
-                        string: "\n        \(note)",
-                        attributes: [
-                            .font: NSFont.systemFont(ofSize: 12), .foregroundColor: secondaryColor,
-                        ]))
-            }
+        row.addArrangedSubview(icon)
+        row.addArrangedSubview(textCol)
+        return row
+    }
+
+    private func makeNumberBadge(_ n: Int) -> NSView {
+        let badge = RoundedTintView(
+            cornerRadius: 11, borderWidth: 0,
+            fill: { NSColor.controlAccentColor.withAlphaComponent(0.15) })
+        badge.setContentHuggingPriority(.required, for: .horizontal)
+        let label = NSTextField(labelWithString: "\(n)")
+        label.font = NSFont.systemFont(ofSize: 12, weight: .bold)
+        label.textColor = .controlAccentColor
+        label.alignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        badge.addSubview(label)
+        NSLayoutConstraint.activate([
+            badge.widthAnchor.constraint(equalToConstant: 22),
+            badge.heightAnchor.constraint(equalToConstant: 22),
+            label.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+        ])
+        return badge
+    }
+
+    private func makeStepRow(number: Int, title: String, note: String?) -> NSView {
+        let row = NSView()
+        row.translatesAutoresizingMaskIntoConstraints = false
+
+        let badge = makeNumberBadge(number)
+        let titleLabel = NSTextField(wrappingLabelWithString: title)
+        titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        titleLabel.textColor = .labelColor
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        row.addSubview(badge)
+        row.addSubview(titleLabel)
+        NSLayoutConstraint.activate([
+            badge.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+            badge.topAnchor.constraint(equalTo: row.topAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: badge.trailingAnchor, constant: 12),
+            titleLabel.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            titleLabel.topAnchor.constraint(equalTo: row.topAnchor, constant: 1),
+        ])
+
+        if let note = note, !note.isEmpty {
+            let noteLabel = NSTextField(wrappingLabelWithString: note)
+            noteLabel.font = NSFont.systemFont(ofSize: 12)
+            noteLabel.textColor = .secondaryLabelColor
+            noteLabel.translatesAutoresizingMaskIntoConstraints = false
+            row.addSubview(noteLabel)
+            NSLayoutConstraint.activate([
+                noteLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+                noteLabel.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+                noteLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+                noteLabel.bottomAnchor.constraint(equalTo: row.bottomAnchor),
+            ])
+        } else {
+            titleLabel.bottomAnchor.constraint(equalTo: row.bottomAnchor).isActive = true
         }
+        return row
+    }
 
-        result.append(NSAttributedString(string: "\n\n", attributes: [.font: bodyFont]))
+    private func makeShortcutRow(key: String, desc: String) -> NSView {
+        let row = NSView()
+        row.translatesAutoresizingMaskIntoConstraints = false
 
-        result.append(
-            NSAttributedString(
-                string: "How to Type\n",
-                attributes: [
-                    .font: headingFont, .foregroundColor: accentColor,
-                ]))
+        let chip = WelcomeUI.keyChip(key)
+        chip.setContentHuggingPriority(.required, for: .horizontal)
+        let descLabel = NSTextField(wrappingLabelWithString: desc)
+        descLabel.font = NSFont.systemFont(ofSize: 12)
+        descLabel.textColor = .secondaryLabelColor
+        descLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let tips = [
-            ("Type in English phonetically", "e.g.  ami \u{2192} আমি,   bangla \u{2192} বাংলা"),
-            ("Space", "commits the top suggestion"),
-            ("1-9", "selects a specific candidate from the list"),
-            ("Backspace", "deletes the last character"),
-            ("Escape", "cancels current input"),
-            ("Arrow keys \u{2191}\u{2193}", "navigate through candidates"),
-        ]
+        row.addSubview(chip)
+        row.addSubview(descLabel)
+        NSLayoutConstraint.activate([
+            chip.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+            chip.topAnchor.constraint(equalTo: row.topAnchor),
+            chip.bottomAnchor.constraint(lessThanOrEqualTo: row.bottomAnchor),
+            descLabel.leadingAnchor.constraint(equalTo: chip.trailingAnchor, constant: 12),
+            descLabel.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            descLabel.topAnchor.constraint(equalTo: row.topAnchor, constant: 1),
+            descLabel.bottomAnchor.constraint(equalTo: row.bottomAnchor),
+        ])
+        return row
+    }
 
-        for (key, desc) in tips {
-            result.append(NSAttributedString(string: "\n  ", attributes: [.font: bodyFont]))
-            result.append(
-                NSAttributedString(
-                    string: key,
-                    attributes: [
-                        .font: NSFont.systemFont(ofSize: 13, weight: .medium),
-                        .foregroundColor: bodyColor,
-                    ]))
-            result.append(
-                NSAttributedString(
-                    string: "  \u{2014}  \(desc)",
-                    attributes: [
-                        .font: bodyFont, .foregroundColor: secondaryColor,
-                    ]))
+    private func makeFooter() -> NSView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let divider = NSBox()
+        divider.boxType = .separator
+        divider.translatesAutoresizingMaskIntoConstraints = false
+
+        let credit = NSTextField(labelWithString: "Maintained by Abdur Rahim")
+        credit.font = NSFont.systemFont(ofSize: 11)
+        credit.textColor = .secondaryLabelColor
+
+        let dot = NSTextField(labelWithString: "\u{00B7}")
+        dot.font = NSFont.systemFont(ofSize: 11)
+        dot.textColor = .tertiaryLabelColor
+
+        let links = NSStackView(views: [
+            makeLinkButton("github.com/ARahim3", url: "https://github.com/ARahim3"),
+            dot,
+            makeLinkButton("arahim3.github.io", url: "https://arahim3.github.io"),
+        ])
+        links.orientation = .horizontal
+        links.spacing = 8
+        links.alignment = .centerY
+
+        let powered = NSTextField(wrappingLabelWithString:
+            "Powered by OpenBangla\u{2019}s riti engine. Built for the Bengali community on macOS.")
+        powered.font = NSFont.systemFont(ofSize: 10)
+        powered.textColor = .tertiaryLabelColor
+        powered.alignment = .center
+        powered.translatesAutoresizingMaskIntoConstraints = false
+
+        stack.addArrangedSubview(divider)
+        stack.setCustomSpacing(12, after: divider)
+        stack.addArrangedSubview(credit)
+        stack.addArrangedSubview(links)
+        stack.setCustomSpacing(8, after: links)
+        stack.addArrangedSubview(powered)
+
+        NSLayoutConstraint.activate([
+            divider.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            powered.widthAnchor.constraint(equalTo: stack.widthAnchor),
+        ])
+        return stack
+    }
+
+    private func makeLinkButton(_ title: String, url: String) -> NSButton {
+        let button = NSButton(title: title, target: self, action: #selector(openLink(_:)))
+        button.isBordered = false
+        button.bezelStyle = .inline
+        button.attributedTitle = NSAttributedString(string: title, attributes: [
+            .foregroundColor: NSColor.controlAccentColor,
+            .font: NSFont.systemFont(ofSize: 11),
+        ])
+        button.identifier = NSUserInterfaceItemIdentifier(url)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
+    }
+
+    @objc private func openLink(_ sender: NSButton) {
+        if let raw = sender.identifier?.rawValue, let url = URL(string: raw) {
+            NSWorkspace.shared.open(url)
         }
-
-        result.append(NSAttributedString(string: "\n\n", attributes: [.font: bodyFont]))
-
-        result.append(
-            NSAttributedString(
-                string: "Tip: ",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-                    .foregroundColor: secondaryColor,
-                ]))
-        result.append(
-            NSAttributedString(
-                string:
-                    "You can close this window \u{2014} the keyboard keeps running in the background. Open Lekho again anytime to see this guide.\n\n",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 12), .foregroundColor: secondaryColor,
-                ]))
-
-        result.append(
-            NSAttributedString(
-                string: "See the ",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 12), .foregroundColor: secondaryColor,
-                ]))
-        result.append(
-            NSAttributedString(
-                string: "Avro Layout",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-                    .foregroundColor: accentColor,
-                ]))
-        result.append(
-            NSAttributedString(
-                string: " tab for the full phonetic key mapping.\n",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 12), .foregroundColor: secondaryColor,
-                ]))
-
-        // Attribution footer
-        result.append(NSAttributedString(string: "\n\n", attributes: [.font: bodyFont]))
-
-        // Separator line
-        let separatorParagraph = NSMutableParagraphStyle()
-        separatorParagraph.alignment = .center
-        result.append(
-            NSAttributedString(
-                string: "\u{2500}\u{2500}\u{2500}\n\n",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 10),
-                    .foregroundColor: NSColor.separatorColor,
-                    .paragraphStyle: separatorParagraph,
-                ]))
-
-        let footerParagraph = NSMutableParagraphStyle()
-        footerParagraph.alignment = .center
-        footerParagraph.lineSpacing = 4
-
-        result.append(
-            NSAttributedString(
-                string: "Developed by ",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 11),
-                    .foregroundColor: secondaryColor,
-                    .paragraphStyle: footerParagraph,
-                ]))
-        result.append(
-            NSAttributedString(
-                string: "Abdur Rahim",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
-                    .foregroundColor: bodyColor,
-                    .paragraphStyle: footerParagraph,
-                ]))
-        result.append(
-            NSAttributedString(
-                string: "\n",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 11),
-                    .paragraphStyle: footerParagraph,
-                ]))
-
-        // GitHub link
-        let githubURL = URL(string: "https://github.com/ARahim3")!
-        result.append(
-            NSAttributedString(
-                string: "github.com/ARahim3",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 11),
-                    .foregroundColor: accentColor,
-                    .link: githubURL,
-                    .paragraphStyle: footerParagraph,
-                ]))
-        result.append(
-            NSAttributedString(
-                string: "  \u{00B7}  ",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 11),
-                    .foregroundColor: secondaryColor,
-                    .paragraphStyle: footerParagraph,
-                ]))
-
-        // Website link
-        let websiteURL = URL(string: "https://arahim3.github.io")!
-        result.append(
-            NSAttributedString(
-                string: "arahim3.github.io",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 11),
-                    .foregroundColor: accentColor,
-                    .link: websiteURL,
-                    .paragraphStyle: footerParagraph,
-                ]))
-
-        result.append(
-            NSAttributedString(
-                string: "\nPowered by OpenBangla\u{2019}s riti engine. Built for the Bengali community on macOS.\n",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 10),
-                    .foregroundColor: NSColor.tertiaryLabelColor,
-                    .paragraphStyle: footerParagraph,
-                ]))
-
-        return result
     }
 
     private func setupCheckForUpdateButton() {
@@ -543,58 +829,74 @@ class LayoutWebView: NSView {
             <meta charset="utf-8">
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                body {
-                    font-family: -apple-system, "Helvetica Neue", sans-serif;
-                    padding: 12px 16px;
-                    background: transparent;
-                    color-scheme: light dark;
-                    color: #333;
+                :root {
+                    --accent: #007aff;
+                    --text: #1d1d1f;
+                    --text-secondary: #8a8a8e;
+                    --card-bg: rgba(0, 0, 0, 0.025);
+                    --card-border: rgba(0, 0, 0, 0.10);
+                    --row-border: rgba(0, 0, 0, 0.06);
                 }
                 @media (prefers-color-scheme: dark) {
-                    body { color: #e0e0e0; }
-                    .section-title { color: #6cb4ee; }
-                    .key { color: #6cb4ee; }
-                    table { border-color: #444; }
-                    td { border-color: #3a3a3a; }
-                    .bn { color: #e0e0e0; }
+                    :root {
+                        --accent: #6cb4ee;
+                        --text: #f2f2f7;
+                        --text-secondary: #98989d;
+                        --card-bg: rgba(255, 255, 255, 0.05);
+                        --card-border: rgba(255, 255, 255, 0.12);
+                        --row-border: rgba(255, 255, 255, 0.07);
+                    }
+                }
+                body {
+                    font-family: -apple-system, "Helvetica Neue", sans-serif;
+                    padding: 16px 18px;
+                    background: transparent;
+                    color-scheme: light dark;
+                    color: var(--text);
                 }
                 .section-title {
-                    color: #007aff;
-                    font-size: 12px;
+                    color: var(--text-secondary);
+                    font-size: 10.5px;
                     font-weight: 600;
-                    margin: 10px 0 4px 0;
-                    text-transform: none;
+                    letter-spacing: 0.5px;
+                    text-transform: uppercase;
+                    margin: 16px 0 5px 2px;
                 }
                 .section-title:first-child { margin-top: 0; }
                 table {
                     width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 2px;
                     table-layout: fixed;
+                    border-collapse: separate;
+                    border-spacing: 0;
+                    background: var(--card-bg);
+                    border: 1px solid var(--card-border);
+                    border-radius: 10px;
+                    overflow: hidden;
                 }
                 td {
-                    padding: 2px 5px;
-                    border-bottom: 1px solid #e8e8e8;
+                    padding: 4px 6px;
+                    border-bottom: 1px solid var(--row-border);
                     vertical-align: middle;
                     font-size: 12px;
-                    line-height: 1.3;
+                    line-height: 1.35;
                 }
+                tr:last-child td { border-bottom: none; }
                 .bn {
                     font-size: 15px;
                     font-weight: 500;
-                    color: #1a1a1a;
-                    width: 32px;
+                    color: var(--text);
+                    width: 34px;
                     text-align: center;
                 }
                 .key {
                     font-size: 11px;
-                    font-weight: 500;
-                    color: #007aff;
+                    font-weight: 600;
+                    color: var(--accent);
                     font-family: "SF Mono", Menlo, monospace;
                 }
                 .pair { width: 25%; }
                 .pair-wide { width: 33.33%; }
-                .sep { width: 1px; }
+                .sep { width: 10px; }
             </style>
             </head>
             <body>

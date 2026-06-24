@@ -6,15 +6,54 @@ class LekhoInputController: IMKInputController {
 
     // MARK: - Settings
 
-    /// UserDefaults key for the phonetic-only toggle. When true, riti returns a
-    /// single phonetic transliteration with no dictionary/autocorrect/emoji
-    /// candidates — committed inline via the lonely-suggestion path.
+    /// How transliteration and suggestions behave while typing.
+    enum TypingMode: String {
+        /// Dictionary, autocorrect, and emoji suggestions; the engine's top-ranked
+        /// candidate is selected/committed by default. (Original behavior.)
+        case smart
+        /// The full suggestion list is shown, but the literal phonetic
+        /// transliteration is selected/committed by default — unless the user has a
+        /// remembered selection for this word. Predictable output, dictionary on tap.
+        case phoneticFirst
+        /// A single phonetic transliteration committed inline — no candidate popup,
+        /// no autocorrect, no emoji.
+        case phoneticOnly
+    }
+
+    /// UserDefaults key holding the raw value of the current `TypingMode`.
+    static let typingModeKey = "LekhoTypingMode"
+
+    /// Legacy bool key (pre-multi-mode). Read only for one-time migration into
+    /// `typingModeKey`: true → `.phoneticOnly`, false → `.smart`.
     static let phoneticOnlyModeKey = "LekhoPhoneticOnlyMode"
+
+    /// Resolve the current typing mode, migrating from the legacy bool when the
+    /// new key hasn't been written yet. Default (and recommended) is `.phoneticFirst`.
+    static func currentTypingMode() -> TypingMode {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: typingModeKey),
+           let mode = TypingMode(rawValue: raw) {
+            return mode
+        }
+        // Legacy phonetic-only users keep their setting; everyone else (including
+        // upgrades from the old single-toggle build) gets the default.
+        if defaults.bool(forKey: phoneticOnlyModeKey) { return .phoneticOnly }
+        return .phoneticFirst
+    }
 
     // MARK: - Engine state
 
     private var engineCtx: OpaquePointer?
     private var engineConfig: OpaquePointer?
+    /// Shadow context running phonetic-only, used in `.phoneticFirst` to obtain the
+    /// raw transliteration of the current buffer so it can be default-selected in
+    /// the main suggestion list. Nil in other modes.
+    private var phoneticCtx: OpaquePointer?
+    private var phoneticConfig: OpaquePointer?
+    /// Raw phonetic transliteration of the current buffer (from `phoneticCtx`).
+    private var currentPhonetic: String?
+    /// Typing mode captured for the lifetime of the current engine.
+    private var typingMode: TypingMode = .smart
     private var currentSuggestion: OpaquePointer?
     private var selectedIndex: UInt = 0
     private var candidatePanel: CandidatePanel?
@@ -33,50 +72,65 @@ class LekhoInputController: IMKInputController {
         initializeEngine()
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(phoneticOnlyModeChanged),
-            name: .lekhoPhoneticOnlyModeChanged,
+            selector: #selector(typingModeChanged),
+            name: .lekhoTypingModeChanged,
             object: nil
         )
     }
 
     private func initializeEngine() {
-        engineConfig = riti_config_new()
+        typingMode = Self.currentTypingMode()
+
+        // Phonetic-only mode disables dictionary lookup, autocorrect, and emoji
+        // suggestions — riti returns a single "lonely" transliteration that the
+        // input pipeline commits inline without showing a candidate panel.
+        engineConfig = makeConfig(phoneticSuggestion: typingMode != .phoneticOnly)
+        engineCtx = riti_context_new_with_config(engineConfig)
+
+        // Phonetic-first runs a second, phonetic-only context in lockstep. Its
+        // lonely output gives us the literal transliteration of the current buffer,
+        // which we locate in the main suggestion list to select it by default.
+        if typingMode == .phoneticFirst {
+            phoneticConfig = makeConfig(phoneticSuggestion: false)
+            phoneticCtx = riti_context_new_with_config(phoneticConfig)
+        }
+    }
+
+    /// Build a riti config pointed at the bundle data + user dir, with the given
+    /// phonetic-suggestion setting.
+    private func makeConfig(phoneticSuggestion: Bool) -> OpaquePointer? {
+        let config = riti_config_new()
 
         // Set layout to Avro Phonetic
         "avro_phonetic".withCString { ptr in
-            _ = riti_config_set_layout_file(engineConfig, ptr)
+            _ = riti_config_set_layout_file(config, ptr)
         }
 
         // Set database directory to app bundle's Resources/data
         let dataDir = Bundle.main.resourcePath! + "/data"
         dataDir.withCString { ptr in
-            _ = riti_config_set_database_dir(engineConfig, ptr)
+            _ = riti_config_set_database_dir(config, ptr)
         }
 
         // Set user directory for preferences
         let userDir = getUserDataDir()
         userDir.withCString { ptr in
-            _ = riti_config_set_user_dir(engineConfig, ptr)
+            _ = riti_config_set_user_dir(config, ptr)
         }
 
-        // Phonetic-only mode disables dictionary lookup, autocorrect, and emoji
-        // suggestions — riti returns a single "lonely" transliteration that the
-        // input pipeline commits inline without showing a candidate panel.
-        let phoneticOnly = UserDefaults.standard.bool(forKey: Self.phoneticOnlyModeKey)
-        riti_config_set_phonetic_suggestion(engineConfig, !phoneticOnly)
-        riti_config_set_suggestion_include_english(engineConfig, true)
-
-        // Create the context
-        engineCtx = riti_context_new_with_config(engineConfig)
+        riti_config_set_phonetic_suggestion(config, phoneticSuggestion)
+        riti_config_set_suggestion_include_english(config, true)
+        return config
     }
 
-    /// Tear down the riti context+config and re-create with current settings.
-    /// Called when the phonetic-only toggle changes; any in-flight session is
-    /// dropped (host marked text clears on next keystroke).
+    /// Tear down the riti context(s)+config(s) and re-create with current settings.
+    /// Called when the typing mode changes; any in-flight session is dropped (host
+    /// marked text clears on next keystroke).
     private func rebuildEngine() {
         if let ctx = engineCtx, riti_context_ongoing_input_session(ctx) {
             riti_context_finish_input_session(ctx)
         }
+        finishPhoneticShadow()
         freeSuggestion()
         hideCandidates()
         selectedIndex = 0
@@ -89,11 +143,94 @@ class LekhoInputController: IMKInputController {
             riti_config_free(cfg)
             engineConfig = nil
         }
+        if let ctx = phoneticCtx {
+            riti_context_free(ctx)
+            phoneticCtx = nil
+        }
+        if let cfg = phoneticConfig {
+            riti_config_free(cfg)
+            phoneticConfig = nil
+        }
         initializeEngine()
     }
 
-    @objc private func phoneticOnlyModeChanged() {
+    @objc private func typingModeChanged() {
         rebuildEngine()
+    }
+
+    // MARK: - Phonetic shadow context (.phoneticFirst)
+
+    /// Feed a key to the shadow phonetic-only context and capture the resulting
+    /// raw transliteration of the current buffer. No-op outside `.phoneticFirst`.
+    private func feedPhoneticShadow(key: UInt16, modifier: UInt8) {
+        guard let ctx = phoneticCtx else { return }
+        let suggestion = riti_get_suggestion_for_key(ctx, key, modifier, 0)
+        currentPhonetic = lonelyText(of: suggestion)
+        if let suggestion = suggestion { riti_suggestion_free(suggestion) }
+    }
+
+    private func backspacePhoneticShadow(ctrl: Bool) {
+        guard let ctx = phoneticCtx else { return }
+        let suggestion = riti_context_backspace_event(ctx, ctrl)
+        currentPhonetic = lonelyText(of: suggestion)
+        if let suggestion = suggestion { riti_suggestion_free(suggestion) }
+    }
+
+    /// End any shadow session and clear the cached phonetic text. Idempotent, so
+    /// it's safe to call from every session-ending path.
+    private func finishPhoneticShadow() {
+        if let ctx = phoneticCtx, riti_context_ongoing_input_session(ctx) {
+            riti_context_finish_input_session(ctx)
+        }
+        currentPhonetic = nil
+    }
+
+    /// Extract the lonely-suggestion string from a phonetic-only suggestion.
+    private func lonelyText(of suggestion: OpaquePointer?) -> String? {
+        guard let suggestion = suggestion,
+              !riti_suggestion_is_empty(suggestion),
+              riti_suggestion_is_lonely(suggestion),
+              let ptr = riti_suggestion_get_lonely_suggestion(suggestion) else {
+            return nil
+        }
+        let text = String(cString: ptr)
+        riti_string_free(ptr)
+        return text
+    }
+
+    /// Decide which candidate is selected by default for the current suggestion.
+    /// Honors riti's remembered selection first; in `.phoneticFirst` falls back to
+    /// the literal phonetic candidate; otherwise index 0.
+    private func resolveSelectedIndex() {
+        guard let suggestion = currentSuggestion,
+              !riti_suggestion_is_empty(suggestion),
+              !riti_suggestion_is_lonely(suggestion) else {
+            selectedIndex = 0
+            return
+        }
+
+        let length = riti_suggestion_get_length(suggestion)
+        if length == 0 { selectedIndex = 0; return }
+
+        let prevIndex = riti_suggestion_previously_selected_index(suggestion)
+        if prevIndex >= 0 && UInt(prevIndex) < length {
+            selectedIndex = UInt(prevIndex)
+            return
+        }
+
+        if typingMode == .phoneticFirst, let phonetic = currentPhonetic {
+            for i in 0..<length {
+                guard let ptr = riti_suggestion_get_suggestion(suggestion, i) else { continue }
+                let candidate = String(cString: ptr)
+                riti_string_free(ptr)
+                if candidate == phonetic {
+                    selectedIndex = i
+                    return
+                }
+            }
+        }
+
+        selectedIndex = 0
     }
 
     /// True when there's an ongoing session AND the suggestion is lonely (riti's
@@ -134,6 +271,12 @@ class LekhoInputController: IMKInputController {
         if let config = engineConfig {
             riti_config_free(config)
         }
+        if let ctx = phoneticCtx {
+            riti_context_free(ctx)
+        }
+        if let config = phoneticConfig {
+            riti_config_free(config)
+        }
     }
 
     // MARK: - Key handling
@@ -171,6 +314,7 @@ class LekhoInputController: IMKInputController {
         if keyCode == 53 {
             if riti_context_ongoing_input_session(engineCtx) {
                 riti_context_finish_input_session(engineCtx)
+                finishPhoneticShadow()
                 freeSuggestion()
                 client.setMarkedText(
                     "" as NSString,
@@ -189,11 +333,14 @@ class LekhoInputController: IMKInputController {
                 let ctrlPressed = modifiers.contains(.control)
                 freeSuggestion()
                 currentSuggestion = riti_context_backspace_event(engineCtx, ctrlPressed)
+                backspacePhoneticShadow(ctrl: ctrlPressed)
 
                 if riti_context_ongoing_input_session(engineCtx) {
+                    resolveSelectedIndex()
                     updateMarkedText(client: client)
                     showCandidates(client: client)
                 } else {
+                    finishPhoneticShadow()
                     client.setMarkedText(
                         "" as NSString,
                         selectionRange: NSRange(location: 0, length: 0),
@@ -340,8 +487,10 @@ class LekhoInputController: IMKInputController {
             ritiModifier,
             UInt8(selectedIndex)
         )
+        feedPhoneticShadow(key: ritiKey, modifier: ritiModifier)
 
         if riti_context_ongoing_input_session(engineCtx) {
+            resolveSelectedIndex()
             updateMarkedText(client: client)
             showCandidates(client: client)
         } else {
@@ -361,6 +510,7 @@ class LekhoInputController: IMKInputController {
                     commitTopCandidate(client: client)
                 }
             }
+            finishPhoneticShadow()
             hideCandidates()
         }
 
@@ -413,6 +563,7 @@ class LekhoInputController: IMKInputController {
         guard let suggestion = currentSuggestion,
               !riti_suggestion_is_empty(suggestion) else {
             riti_context_finish_input_session(engineCtx)
+            finishPhoneticShadow()
             freeSuggestion()
             hideCandidates()
             return
@@ -444,6 +595,7 @@ class LekhoInputController: IMKInputController {
         )
 
         selectedIndex = 0
+        finishPhoneticShadow()
         freeSuggestion()
         hideCandidates()
     }
@@ -560,12 +712,9 @@ class LekhoInputController: IMKInputController {
             }
         }
 
-        let prevIndex = riti_suggestion_previously_selected_index(suggestion)
-        if prevIndex >= 0 && UInt(prevIndex) < length {
-            selectedIndex = UInt(prevIndex)
-        } else {
-            selectedIndex = 0
-        }
+        // selectedIndex is resolved by resolveSelectedIndex() before this call;
+        // clamp defensively in case the list shrank.
+        if selectedIndex >= length { selectedIndex = 0 }
 
         candidatePanel?.show(
             candidates: candidates,
@@ -591,6 +740,7 @@ class LekhoInputController: IMKInputController {
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         selectedIndex = 0
+        finishPhoneticShadow()
         freeSuggestion()
     }
 
@@ -599,6 +749,7 @@ class LekhoInputController: IMKInputController {
            riti_context_ongoing_input_session(engineCtx) {
             commitTopCandidate(client: client)
         }
+        finishPhoneticShadow()
         freeSuggestion()
         hideCandidates()
         super.deactivateServer(sender)
@@ -627,5 +778,5 @@ class LekhoInputController: IMKInputController {
 }
 
 extension Notification.Name {
-    static let lekhoPhoneticOnlyModeChanged = Notification.Name("LekhoPhoneticOnlyModeChanged")
+    static let lekhoTypingModeChanged = Notification.Name("LekhoTypingModeChanged")
 }

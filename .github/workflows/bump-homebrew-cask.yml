@@ -1,0 +1,78 @@
+name: Bump Homebrew cask
+
+# When a GitHub Release is published in this repo, update the `lekho` cask in the
+# personal tap (ARahim3/homebrew-lekho) with the new version + DMG sha256, so
+# `brew upgrade --cask lekho` picks it up automatically.
+#
+# Requires a repo secret HOMEBREW_TAP_TOKEN: a fine-grained Personal Access Token
+# with Contents: Read and write on the ARahim3/homebrew-lekho repository. (The
+# default GITHUB_TOKEN can only write to THIS repo, not the separate tap repo.)
+#
+# The release must already have the DMG asset attached (named Lekho-X.Y.Z.dmg).
+
+on:
+  release:
+    types: [published]
+  # Manual re-run / backfill for a tag that already has its DMG uploaded.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sync (e.g. v0.2.5)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  bump-cask:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag and version
+        id: ver
+        run: |
+          TAG="${{ github.event.release.tag_name || github.event.inputs.tag }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download DMG and compute sha256
+        id: dmg
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          DMG="Lekho-${VERSION}.dmg"
+          gh release download "${{ steps.ver.outputs.tag }}" \
+            --repo "${{ github.repository }}" --pattern "$DMG" --dir .
+          SHA="$(sha256sum "$DMG" | awk '{print $1}')"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Computed sha256=$SHA for $DMG"
+
+      - name: Check out the tap
+        uses: actions/checkout@v4
+        with:
+          repository: ARahim3/homebrew-lekho
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Update cask version + sha256
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          SHA="${{ steps.dmg.outputs.sha256 }}"
+          CASK="tap/Casks/lekho.rb"
+          sed -i -E "s/^  version \".*\"/  version \"${VERSION}\"/" "$CASK"
+          sed -i -E "s/^  sha256 \".*\"/  sha256 \"${SHA}\"/" "$CASK"
+          echo "---- updated cask head ----"
+          head -5 "$CASK"
+
+      - name: Commit and push
+        working-directory: tap
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes — cask already up to date."
+            exit 0
+          fi
+          git add Casks/lekho.rb
+          git commit -m "lekho ${{ steps.ver.outputs.version }}"
+          git push
