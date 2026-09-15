@@ -56,6 +56,13 @@ class LekhoInputController: IMKInputController {
     private var typingMode: TypingMode = .smart
     private var currentSuggestion: OpaquePointer?
     private var selectedIndex: UInt = 0
+    /// Maps display position → engine index for the current suggestion. riti
+    /// emits emoji candidates at the front of its list; Lekho shows them at the
+    /// end of the panel instead, so word candidates keep riti's order and
+    /// emoji-only candidates are appended after them. `selectedIndex` is a
+    /// *display* index; every call into riti must convert it with
+    /// `engineIndex(forDisplay:)`.
+    private var displayOrder: [Int] = []
     private var candidatePanel: CandidatePanel?
     private var lastKnownCursorRect: NSRect = .zero
 
@@ -200,8 +207,15 @@ class LekhoInputController: IMKInputController {
 
     /// Decide which candidate is selected by default for the current suggestion.
     /// Honors riti's remembered selection first; in `.phoneticFirst` falls back to
-    /// the literal phonetic candidate; otherwise index 0.
+    /// the literal phonetic candidate; otherwise index 0. Emoji candidates are
+    /// never auto-selected — the user must pick them explicitly (arrow keys,
+    /// Tab, number key, or click).
     private func resolveSelectedIndex() {
+        computeSelectedIndex()
+        avoidEmojiDefault()
+    }
+
+    private func computeSelectedIndex() {
         guard let suggestion = currentSuggestion,
               !riti_suggestion_is_empty(suggestion),
               !riti_suggestion_is_lonely(suggestion) else {
@@ -214,7 +228,7 @@ class LekhoInputController: IMKInputController {
 
         let prevIndex = riti_suggestion_previously_selected_index(suggestion)
         if prevIndex >= 0 && UInt(prevIndex) < length {
-            selectedIndex = UInt(prevIndex)
+            selectedIndex = displayIndex(forEngine: UInt(prevIndex))
             return
         }
 
@@ -224,13 +238,28 @@ class LekhoInputController: IMKInputController {
                 let candidate = String(cString: ptr)
                 riti_string_free(ptr)
                 if candidate == phonetic {
-                    selectedIndex = i
+                    selectedIndex = displayIndex(forEngine: i)
                     return
                 }
             }
         }
 
         selectedIndex = 0
+    }
+
+    /// Emoji are suggestion-only: if the computed default selection landed on an
+    /// emoji candidate (riti ranks emoji first, so this happens whenever riti's
+    /// remembered/top selection is an emoji), move the selection to the first
+    /// word candidate instead. The emoji stays visible at the end of the panel
+    /// for the user to pick explicitly.
+    private func avoidEmojiDefault() {
+        guard !displayOrder.isEmpty, Int(selectedIndex) < displayOrder.count else { return }
+        let candidates = orderedCandidates(of: currentSuggestion).candidates
+        guard Int(selectedIndex) < candidates.count,
+              Self.isEmojiCandidate(candidates[Int(selectedIndex)]) else { return }
+        if let firstWord = candidates.firstIndex(where: { !Self.isEmojiCandidate($0) }) {
+            selectedIndex = UInt(firstWord)
+        }
     }
 
     /// True when there's an ongoing session AND the suggestion is lonely (riti's
@@ -334,6 +363,7 @@ class LekhoInputController: IMKInputController {
                 freeSuggestion()
                 currentSuggestion = riti_context_backspace_event(engineCtx, ctrlPressed)
                 backspacePhoneticShadow(ctrl: ctrlPressed)
+                refreshDisplayOrder()
 
                 if riti_context_ongoing_input_session(engineCtx) {
                     resolveSelectedIndex()
@@ -479,15 +509,17 @@ class LekhoInputController: IMKInputController {
         // Get modifier for riti
         let ritiModifier: UInt8 = modifiers.contains(.shift) ? UInt8(MODIFIER_SHIFT) : 0
 
-        // Get suggestion from engine
+        // Get suggestion from engine. `selectedIndex` is a display index (with
+        // emoji pushed to the end of the panel) — riti expects its own ordering.
         freeSuggestion()
         currentSuggestion = riti_get_suggestion_for_key(
             engineCtx,
             ritiKey,
             ritiModifier,
-            UInt8(selectedIndex)
+            UInt8(engineIndex(forDisplay: selectedIndex))
         )
         feedPhoneticShadow(key: ritiKey, modifier: ritiModifier)
+        refreshDisplayOrder()
 
         if riti_context_ongoing_input_session(engineCtx) {
             resolveSelectedIndex()
@@ -534,7 +566,7 @@ class LekhoInputController: IMKInputController {
         } else {
             let length = riti_suggestion_get_length(suggestion)
             if length == 0 { return }
-            preEditIndex = min(selectedIndex, length - 1)
+            preEditIndex = engineIndex(forDisplay: min(selectedIndex, length - 1))
         }
         let preEditPtr = riti_suggestion_get_pre_edit_text(suggestion, preEditIndex)
         guard let preEditPtr = preEditPtr else { return }
@@ -581,8 +613,11 @@ class LekhoInputController: IMKInputController {
             // the now-stale buffer.
             riti_context_finish_input_session(engineCtx)
         } else {
+            // The caller (digit key, click, default commit) refers to a display
+            // position; riti expects its own engine ordering.
+            let mapped = engineIndex(forDisplay: UInt(index))
             let length = riti_suggestion_get_length(suggestion)
-            let safeIndex = UInt(min(index, Int(length) - 1))
+            let safeIndex = UInt(min(Int(mapped), Int(length) - 1))
             let ptr = riti_suggestion_get_suggestion(suggestion, safeIndex)
             text = ptr != nil ? String(cString: ptr!) : ""
             if let ptr = ptr { riti_string_free(ptr) }
@@ -675,6 +710,85 @@ class LekhoInputController: IMKInputController {
         return NSScreen.screens.contains { $0.frame.contains(rect.origin) }
     }
 
+    // MARK: - Candidate ordering (emoji last)
+
+    /// Read the full candidate list out of riti and produce the display order:
+    /// word candidates in riti's original order first, emoji-only candidates
+    /// appended at the end. Returns the display-ordered strings and the
+    /// display → engine index mapping.
+    private func orderedCandidates(of suggestion: OpaquePointer?) -> (candidates: [String], order: [Int]) {
+        guard let suggestion = suggestion,
+              !riti_suggestion_is_empty(suggestion),
+              !riti_suggestion_is_lonely(suggestion) else {
+            return ([], [])
+        }
+
+        let length = riti_suggestion_get_length(suggestion)
+        var engine: [String] = []
+        engine.reserveCapacity(Int(length))
+        for i in 0..<length {
+            guard let ptr = riti_suggestion_get_suggestion(suggestion, i) else { continue }
+            engine.append(String(cString: ptr))
+            riti_string_free(ptr)
+        }
+
+        var order: [Int] = []
+        order.reserveCapacity(engine.count)
+        for (i, candidate) in engine.enumerated() where !Self.isEmojiCandidate(candidate) {
+            order.append(i)
+        }
+        for (i, candidate) in engine.enumerated() where Self.isEmojiCandidate(candidate) {
+            order.append(i)
+        }
+        return (order.map { engine[$0] }, order)
+    }
+
+    /// Rebuild `displayOrder` from the current suggestion. Must be called every
+    /// time `currentSuggestion` is replaced, before `resolveSelectedIndex()`.
+    private func refreshDisplayOrder() {
+        displayOrder = orderedCandidates(of: currentSuggestion).order
+    }
+
+    /// Convert a display position (what the panel, digit keys, and arrow keys
+    /// work with) into riti's engine index. Falls back to the input when the
+    /// mapping is empty (e.g. lonely suggestions) or the position is out of range.
+    private func engineIndex(forDisplay index: UInt) -> UInt {
+        let i = Int(index)
+        guard i >= 0 && i < displayOrder.count else { return index }
+        return UInt(displayOrder[i])
+    }
+
+    /// Convert riti's engine index into the display position shown in the panel.
+    private func displayIndex(forEngine index: UInt) -> UInt {
+        guard let i = displayOrder.firstIndex(of: Int(index)) else { return index }
+        return UInt(i)
+    }
+
+    /// True when the candidate is made up purely of emoji/symbol characters
+    /// (e.g. 😢, 🇧🇩) — no Bengali or Latin word content. Used to push emoji
+    /// suggestions to the end of the candidate panel.
+    private static func isEmojiCandidate(_ text: String) -> Bool {
+        guard !text.isEmpty else { return false }
+        var sawEmojiLike = false
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 0x00A9, 0x00AE, 0x2122,          // ©, ®, ™
+                 0x2000...0x2BFF,                 // symbols, arrows, dingbats, misc. emoji
+                 0x1F000...0x1FAFF,               // main emoji planes (incl. flags)
+                 0x200D, 0xFE0F:                  // ZWJ, variation selector-16
+                sawEmojiLike = true
+            case 0x0980...0x09FF,                 // Bengali
+                 0x0030...0x0039,                 // ASCII digits
+                 0x0041...0x005A, 0x0061...0x007A: // Latin letters
+                // Word content — this is a dictionary/autocorrect candidate.
+                return false
+            default:
+                continue
+            }
+        }
+        return sawEmojiLike
+    }
+
     // MARK: - Candidate window
 
     private func showCandidates(client: any IMKTextInput) {
@@ -685,16 +799,7 @@ class LekhoInputController: IMKInputController {
             return
         }
 
-        let length = riti_suggestion_get_length(suggestion)
-        var candidates: [String] = []
-        for i in 0..<length {
-            let ptr = riti_suggestion_get_suggestion(suggestion, i)
-            if let ptr = ptr {
-                candidates.append(String(cString: ptr))
-                riti_string_free(ptr)
-            }
-        }
-
+        let (candidates, _) = orderedCandidates(of: suggestion)
         // Get auxiliary text (what the user typed in English)
         let auxPtr = riti_suggestion_get_auxiliary_text(suggestion)
         let auxText = auxPtr != nil ? String(cString: auxPtr!) : ""
@@ -714,7 +819,7 @@ class LekhoInputController: IMKInputController {
 
         // selectedIndex is resolved by resolveSelectedIndex() before this call;
         // clamp defensively in case the list shrank.
-        if selectedIndex >= length { selectedIndex = 0 }
+        if selectedIndex >= UInt(candidates.count) { selectedIndex = 0 }
 
         candidatePanel?.show(
             candidates: candidates,
@@ -764,16 +869,9 @@ class LekhoInputController: IMKInputController {
             return []
         }
 
-        let length = riti_suggestion_get_length(suggestion)
-        var result: [String] = []
-        for i in 0..<length {
-            let ptr = riti_suggestion_get_suggestion(suggestion, i)
-            if let ptr = ptr {
-                result.append(String(cString: ptr))
-                riti_string_free(ptr)
-            }
-        }
-        return result
+        // Same emoji-last ordering as the panel so any system-side consumer
+        // (e.g. IMK candidate UI) sees a consistent list.
+        return orderedCandidates(of: suggestion).candidates
     }
 }
 
