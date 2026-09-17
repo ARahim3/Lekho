@@ -5,15 +5,17 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_BUNDLE="$PROJECT_ROOT/build/Lekho.app"
 PKG_DIR="$PROJECT_ROOT/build/pkg_staging"
 DMG_DIR="$PROJECT_ROOT/build/dmg_staging"
-VERSION="0.2.5"
 PKG_OUTPUT="$PROJECT_ROOT/build/Lekho.pkg"
-DMG_OUTPUT="$PROJECT_ROOT/build/Lekho-${VERSION}.dmg"
 VOLUME_NAME="Lekho"
 
 if [ ! -d "$APP_BUNDLE" ]; then
     echo "Error: $APP_BUNDLE not found. Run 'make build' first."
     exit 1
 fi
+
+# Info.plist is the single source of truth for the version
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_BUNDLE/Contents/Info.plist")"
+DMG_OUTPUT="$PROJECT_ROOT/build/Lekho-${VERSION}.dmg"
 
 echo "=== Creating Installer Package ==="
 

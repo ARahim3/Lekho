@@ -134,6 +134,11 @@ else
     swiftc "${SWIFT_SOURCES[@]}" "${SWIFT_FLAGS[@]}"
 fi
 
+# Strip local symbols from release builds (~400 KB). Must run before signing.
+if [ "$BUILD_TYPE" = "release" ]; then
+    strip -x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+fi
+
 # Step 4: Sign the app (ad-hoc)
 echo ">>> Signing app bundle..."
 codesign --force --sign - \
