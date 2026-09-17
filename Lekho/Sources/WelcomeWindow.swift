@@ -843,7 +843,7 @@ class GettingStartedView: NSView {
 // MARK: - Avro Layout Tab (searchable card grid)
 
 /// Bangla ↔ Avro key mapping. Vowels show the independent letter and its sign on ক;
-/// standalone combining marks sit on a dotted circle (◌) so they're visible.
+/// standalone combining marks sit on a dotted circle () so they're visible.
 /// Verified against riti: ` breaks joining (k`i → কই, not কি); ~ is a literal, not
 /// ZWNJ; there is no standalone nukta key (ড় ঢ় য় come from R, Rh, y).
 private let layoutSections: [(title: String, symbol: String, items: [(bn: String, key: String)])] = [
@@ -855,15 +855,18 @@ private let layoutSections: [(title: String, symbol: String, items: [(bn: String
         ("প", "p"), ("ফ", "ph, f"), ("ব", "b"), ("ভ", "bh, v"), ("ম", "m"),
         ("য", "z"), ("র", "r"), ("ল", "l"), ("শ", "sh, S"), ("ষ", "Sh"),
         ("স", "s"), ("হ", "h"), ("ড়", "R"), ("ঢ়", "Rh"), ("য়", "y, Y"),
-        ("ৎ", "t``"), ("ং", "ng"), ("ঃ", ":"), ("◌ঁ", "^"),
+        ("ৎ", "t``"), ("ং", "ng"), ("ঃ", ":"), ("ঁ", "^"),
     ]),
     ("Vowels", "character", [
-        ("অ", "o"), ("আ / কা", "a"), ("ই / কি", "i"), ("ঈ / কী", "I"), ("উ / কু", "u"),
-        ("ঊ / কূ", "U"), ("ঋ / কৃ", "rri"), ("এ / কে", "e"), ("ঐ / কৈ", "OI"), ("ও / কো", "O"),
-        ("ঔ / কৌ", "OU"),
+        ("অ", "o"), ("আ / া", "a"), ("ই / ি", "i"), ("ঈ / ী", "I"), ("উ / ু", "u"),
+        ("ঊ / ূ", "U"), ("ঋ / ৃ", "rri"), ("এ / ে", "e"), ("ঐ / ৈ", "OI"), ("ও / ো", "O"),
+        ("ঔ / ৌ", "OU"),
     ]),
     ("Special", "sparkles", [
-        ("◌্ হসন্ত", ",,"), ("ব-ফলা", "w"), ("য-ফলা", "y, Z"), ("র-ফলা", "r"), ("রেফ", "rr"),
+        // ZWJ (U+200D) next to the hasanta makes the shaper emit the standalone
+        // phala / reph form instead of a bare hasanta + consonant.
+        ("্ হসন্ত", ",,"), ("\u{200D}্ব ব-ফলা", "w"), ("\u{200D}্য য-ফলা", "y, Z"),
+        ("\u{200D}্র র-ফলা", "r"), ("র্\u{200D} রেফ", "rr"),
         ("। দাড়ি", "."), ("৳ টাকা", "$"), ("Separator", "`"),
     ]),
     ("Numbers", "number", [
@@ -954,7 +957,11 @@ class LayoutView: NSView {
             fill: { .controlBackgroundColor },
             border: { .separatorColor })
         let bn = NSTextField(labelWithString: item.bn)
-        bn.font = NSFont.withBangla(.systemFont(ofSize: 17, weight: .medium))
+        // July has no dotted-circle glyph (U+25CC), so cards showing a bare
+        // vowel sign or mark use the system Bangla font, which draws it.
+        bn.font = item.bn.contains("")
+            ? NSFont(name: "KohinoorBangla-Medium", size: 17) ?? .systemFont(ofSize: 17, weight: .medium)
+            : NSFont.withBangla(.systemFont(ofSize: 17, weight: .medium))
         bn.alignment = .center
         let key = NSTextField(labelWithString: item.key)
         key.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
