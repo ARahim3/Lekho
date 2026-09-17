@@ -1,12 +1,15 @@
 name: Bump Homebrew cask
 
 # When a GitHub Release is published in this repo, update the `lekho` cask in the
-# personal tap (ARahim3/homebrew-lekho) with the new version + DMG sha256, so
+# owner's tap (<owner>/homebrew-lekho) with the new version + DMG sha256, so
 # `brew upgrade --cask lekho` picks it up automatically.
 #
 # Requires a repo secret HOMEBREW_TAP_TOKEN: a fine-grained Personal Access Token
-# with Contents: Read and write on the ARahim3/homebrew-lekho repository. (The
+# with Contents: Read and write on the <owner>/homebrew-lekho repository. (The
 # default GITHUB_TOKEN can only write to THIS repo, not the separate tap repo.)
+#
+# Values from the tag are passed through `env:`, never interpolated into `run`,
+# so tag text can't become shell source.
 #
 # The release must already have the DMG asset attached (named Lekho-X.Y.Z.dmg).
 
@@ -29,8 +32,9 @@ jobs:
     steps:
       - name: Resolve tag and version
         id: ver
+        env:
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
         run: |
-          TAG="${{ github.event.release.tag_name || github.event.inputs.tag }}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
@@ -38,10 +42,11 @@ jobs:
         id: dmg
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          VERSION="${{ steps.ver.outputs.version }}"
           DMG="Lekho-${VERSION}.dmg"
-          gh release download "${{ steps.ver.outputs.tag }}" \
+          gh release download "$TAG" \
             --repo "${{ github.repository }}" --pattern "$DMG" --dir .
           SHA="$(sha256sum "$DMG" | awk '{print $1}')"
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
@@ -50,14 +55,15 @@ jobs:
       - name: Check out the tap
         uses: actions/checkout@v4
         with:
-          repository: ARahim3/homebrew-lekho
+          repository: ${{ github.repository_owner }}/homebrew-lekho
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
 
       - name: Update cask version + sha256
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          SHA: ${{ steps.dmg.outputs.sha256 }}
         run: |
-          VERSION="${{ steps.ver.outputs.version }}"
-          SHA="${{ steps.dmg.outputs.sha256 }}"
           CASK="tap/Casks/lekho.rb"
           sed -i -E "s/^  version \".*\"/  version \"${VERSION}\"/" "$CASK"
           sed -i -E "s/^  sha256 \".*\"/  sha256 \"${SHA}\"/" "$CASK"
@@ -66,6 +72,8 @@ jobs:
 
       - name: Commit and push
         working-directory: tap
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -74,5 +82,5 @@ jobs:
             exit 0
           fi
           git add Casks/lekho.rb
-          git commit -m "lekho ${{ steps.ver.outputs.version }}"
+          git commit -m "lekho ${VERSION}"
           git push
