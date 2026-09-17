@@ -47,9 +47,21 @@ func generateIcon(size: Int, scale: Int) -> NSImage {
 }
 
 func savePNG(_ image: NSImage, to path: String) {
-    guard let tiff = image.tiffRepresentation,
-          let rep = NSBitmapImageRep(data: tiff),
-          let png = rep.representation(using: .png, properties: [:]) else {
+    // Render into an explicit 8-bit rep. Going through tiffRepresentation yields
+    // 16 bits/channel on modern macOS, which made the 1024px slice ~1.4 MB.
+    let w = Int(image.size.width), h = Int(image.size.height)
+    guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .calibratedRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
+        print("Failed to create bitmap for \(path)")
+        return
+    }
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    image.draw(in: NSRect(x: 0, y: 0, width: w, height: h))
+    NSGraphicsContext.restoreGraphicsState()
+    guard let png = rep.representation(using: .png, properties: [:]) else {
         print("Failed to create PNG for \(path)")
         return
     }
