@@ -67,6 +67,11 @@ cp "$SWIFT_DIR/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.i
 # Copy data files
 cp "$PROJECT_ROOT/data/"*.json "$APP_BUNDLE/Contents/Resources/data/"
 
+# Copy fonts to bundle
+if [ -d "$PROJECT_ROOT/fonts" ]; then
+    cp -R "$PROJECT_ROOT/fonts" "$APP_BUNDLE/Contents/Resources/fonts"
+fi
+
 # Create PkgInfo
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
@@ -127,6 +132,11 @@ if [ "$BUILD_UNIVERSAL" = "true" ]; then
     rm "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_x86_64"
 else
     swiftc "${SWIFT_SOURCES[@]}" "${SWIFT_FLAGS[@]}"
+fi
+
+# Strip local symbols from release builds (~400 KB). Must run before signing.
+if [ "$BUILD_TYPE" = "release" ]; then
+    strip -x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 fi
 
 # Step 4: Sign the app (ad-hoc)

@@ -55,6 +55,9 @@ class LekhoInputController: IMKInputController {
     /// Typing mode captured for the lifetime of the current engine.
     private var typingMode: TypingMode = .smart
     private var currentSuggestion: OpaquePointer?
+    /// Candidate strings of `currentSuggestion`, extracted once per keystroke in
+    /// `resolveSelectedIndex()`. Empty for lonely/empty suggestions.
+    private var currentCandidates: [String] = []
     private var selectedIndex: UInt = 0
     private var candidatePanel: CandidatePanel?
     private var lastKnownCursorRect: NSRect = .zero
@@ -198,10 +201,12 @@ class LekhoInputController: IMKInputController {
         return text
     }
 
-    /// Decide which candidate is selected by default for the current suggestion.
-    /// Honors riti's remembered selection first; in `.phoneticFirst` falls back to
-    /// the literal phonetic candidate; otherwise index 0.
+    /// Extract the candidate list once per keystroke (reused by the panel) and
+    /// decide which candidate is selected by default. Honors riti's remembered
+    /// selection first; in `.phoneticFirst` falls back to the literal phonetic
+    /// candidate; otherwise index 0.
     private func resolveSelectedIndex() {
+        currentCandidates = []
         guard let suggestion = currentSuggestion,
               !riti_suggestion_is_empty(suggestion),
               !riti_suggestion_is_lonely(suggestion) else {
@@ -212,22 +217,34 @@ class LekhoInputController: IMKInputController {
         let length = riti_suggestion_get_length(suggestion)
         if length == 0 { selectedIndex = 0; return }
 
+        currentCandidates.reserveCapacity(Int(length))
+        for i in 0..<length {
+            // Append "" on a nil pointer so indices stay aligned with riti's list.
+            guard let ptr = riti_suggestion_get_suggestion(suggestion, i) else {
+                currentCandidates.append("")
+                continue
+            }
+            currentCandidates.append(String(cString: ptr))
+            riti_string_free(ptr)
+        }
+
+        // riti returns 0 both for "nothing remembered" and "remembered candidate 0"
+        // (get_prev_selection ends in unwrap_or_default), so only a non-zero index
+        // is a known user pick. riti also only records a pick when it differs from
+        // the current default, so 0 is almost always "nothing remembered".
+        // ponytail: a deliberate re-pick of candidate 0 after having chosen the
+        // phonetic form is indistinguishable and gets overridden; fixing that
+        // needs a "has selection" API in riti.
         let prevIndex = riti_suggestion_previously_selected_index(suggestion)
-        if prevIndex >= 0 && UInt(prevIndex) < length {
-            selectedIndex = UInt(prevIndex)
+        if prevIndex > 0 && prevIndex < length {
+            selectedIndex = prevIndex
             return
         }
 
-        if typingMode == .phoneticFirst, let phonetic = currentPhonetic {
-            for i in 0..<length {
-                guard let ptr = riti_suggestion_get_suggestion(suggestion, i) else { continue }
-                let candidate = String(cString: ptr)
-                riti_string_free(ptr)
-                if candidate == phonetic {
-                    selectedIndex = i
-                    return
-                }
-            }
+        if typingMode == .phoneticFirst, let phonetic = currentPhonetic,
+           let i = currentCandidates.firstIndex(of: phonetic) {
+            selectedIndex = UInt(i)
+            return
         }
 
         selectedIndex = 0
@@ -289,17 +306,17 @@ class LekhoInputController: IMKInputController {
         }
 
         let modifiers = event.modifierFlags
+        let keyCode = event.keyCode
 
-        // Pass through events with Cmd or Ctrl modifiers
-        if modifiers.contains(.command) || modifiers.contains(.control) {
+        // Pass through events with Cmd or Ctrl modifiers — except Ctrl+Backspace,
+        // which riti handles as whole-word delete inside a session (see below).
+        if modifiers.contains(.command) || (modifiers.contains(.control) && keyCode != 51) {
             // If there's ongoing input, commit it first
             if riti_context_ongoing_input_session(engineCtx) {
                 commitTopCandidate(client: client)
             }
             return false
         }
-
-        let keyCode = event.keyCode
 
         // Handle Enter/Return - commit current selection
         if keyCode == 36 || keyCode == 76 { // Return or numpad Enter
@@ -485,7 +502,7 @@ class LekhoInputController: IMKInputController {
             engineCtx,
             ritiKey,
             ritiModifier,
-            UInt8(selectedIndex)
+            UInt8(clamping: selectedIndex)
         )
         feedPhoneticShadow(key: ritiKey, modifier: ritiModifier)
 
@@ -541,16 +558,47 @@ class LekhoInputController: IMKInputController {
         let preEditText = String(cString: preEditPtr)
         riti_string_free(preEditPtr)
 
-        // Set as marked (underlined) text
+        // Set as marked (underlined) text.
+        //
+        // NSMarkedClauseSegment (value 0) groups the entire composition into a
+        // single segment.  Chromium requires this to identify the string as one
+        // coherent composition unit.
         let attrs: [NSAttributedString.Key: Any] = [
             .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .markedClauseSegment: 0,
             .font: NSFont.systemFont(ofSize: NSFont.systemFontSize)
         ]
         let attrStr = NSAttributedString(string: preEditText, attributes: attrs)
 
+        // Chromium-based browsers (Chrome, Edge, Brave, Electron, Arc …) have
+        // a known bug: they ignore `selectionRange.location` when length == 0
+        // (a collapsed/cursor-only selection) and silently place the cursor at
+        // position 0 — making it appear to the LEFT of the composition.
+        //
+        // Workaround: pass a non-zero-length selection that spans the whole
+        // composition ({location:0, length:N}).  Chromium then positions the
+        // cursor at the END of the selection (position N), which is correct.
+        //
+        // For all other clients, a collapsed NSRange({N, 0}) is the standard
+        // "cursor at end" representation.
+        //
+        // selectionRange values are always UTF-16 code-unit offsets (NSRange
+        // convention).  utf16.count is the correct end-of-string position for
+        // any NSRange consumer, including multi-unit Bangla grapheme clusters
+        // (e.g. "কা" = U+0995+U+09BE = 2 UTF-16 units, 1 grapheme).
+        let utf16Length = preEditText.utf16.count
+        let selectionRange: NSRange
+        if isChromiumClient(client) {
+            // Entire composition as selection → cursor at end
+            selectionRange = NSRange(location: 0, length: utf16Length)
+        } else {
+            // Collapsed cursor at end
+            selectionRange = NSRange(location: utf16Length, length: 0)
+        }
+
         client.setMarkedText(
             attrStr,
-            selectionRange: NSRange(location: preEditText.utf16.count, length: 0),
+            selectionRange: selectionRange,
             replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
         )
     }
@@ -600,11 +648,73 @@ class LekhoInputController: IMKInputController {
         hideCandidates()
     }
 
+    // MARK: - Chromium detection
+
+    /// Chromium-detection results keyed by client bundle id (one directory
+    /// listing per app, then cached).
+    private static var chromiumCache: [String: Bool] = [:]
+
+    /// Returns true when the current client is a Chromium-based app (Chrome,
+    /// Edge, Brave, Electron, Arc, Cursor IDE, etc.).  Used to apply
+    /// Chromium-specific workarounds for IME cursor-positioning bugs.
+    ///
+    /// Every Chromium/Electron app ships a "<Name> Framework.framework" in
+    /// Contents/Frameworks (Google Chrome Framework, Electron Framework, …).
+    /// Bundle-id matching can't do this — Cursor is com.todesktop.<hash>, Arc
+    /// is company.thebrowser.Browser.
+    private func isChromiumClient(_ client: any IMKTextInput) -> Bool {
+        guard let bundleId = client.bundleIdentifier() else { return false }
+        if let cached = Self.chromiumCache[bundleId] { return cached }
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first,
+              let frameworks = app.bundleURL?.appendingPathComponent("Contents/Frameworks") else {
+            return false  // not resolvable right now; don't cache a false negative
+        }
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: frameworks.path)) ?? []
+        let result = names.contains { $0.hasSuffix(" Framework.framework") }
+        Self.chromiumCache[bundleId] = result
+        return result
+    }
+
     // MARK: - Cursor position for candidate window
 
     /// Get cursor screen rect from the client. Called AFTER updateMarkedText
     /// so that markedRange() returns a valid range.
     private func getCursorRect(client: any IMKTextInput) -> NSRect {
+        // For Chromium clients: after setMarkedText with {0, N} selection the
+        // Chromium cursor is at position N (end of composition).  selectedRange()
+        // therefore reports the document cursor at the end — the most reliable
+        // source for the panel position.  Try it first for Chromium.
+        if isChromiumClient(client) {
+            let sel = client.selectedRange()
+            if sel.location != NSNotFound {
+                let rect = client.firstRect(forCharacterRange: sel, actualRange: nil)
+                if isValidCursorRect(rect) {
+                    lastKnownCursorRect = rect
+                    return rect
+                }
+            }
+            // Chromium fallback: rect of the last character of the marked range
+            let marked = client.markedRange()
+            if marked.location != NSNotFound && marked.length > 0 {
+                let lastCharRange = NSRange(location: marked.location + marked.length - 1, length: 1)
+                let rect = client.firstRect(forCharacterRange: lastCharRange, actualRange: nil)
+                if isValidCursorRect(rect) {
+                    // Shift x to the right edge of that character so the panel
+                    // appears at the cursor, not the left edge of the last glyph.
+                    let adjusted = NSRect(x: rect.maxX, y: rect.origin.y,
+                                         width: 0, height: rect.height)
+                    lastKnownCursorRect = adjusted
+                    return adjusted
+                }
+                // Last resort for Chromium: use start of marked range
+                let startRect = client.firstRect(forCharacterRange: marked, actualRange: nil)
+                if isValidCursorRect(startRect) {
+                    lastKnownCursorRect = startRect
+                    return startRect
+                }
+            }
+        }
+
         // Try 1: firstRect with markedRange (most reliable after setMarkedText)
         let marked = client.markedRange()
 
@@ -685,15 +795,10 @@ class LekhoInputController: IMKInputController {
             return
         }
 
-        let length = riti_suggestion_get_length(suggestion)
-        var candidates: [String] = []
-        for i in 0..<length {
-            let ptr = riti_suggestion_get_suggestion(suggestion, i)
-            if let ptr = ptr {
-                candidates.append(String(cString: ptr))
-                riti_string_free(ptr)
-            }
-        }
+        // Extracted by resolveSelectedIndex(), which always runs first.
+        let candidates = currentCandidates
+        let length = UInt(candidates.count)
+        if length == 0 { hideCandidates(); return }
 
         // Get auxiliary text (what the user typed in English)
         let auxPtr = riti_suggestion_get_auxiliary_text(suggestion)
@@ -729,6 +834,7 @@ class LekhoInputController: IMKInputController {
     }
 
     private func freeSuggestion() {
+        currentCandidates = []
         if let suggestion = currentSuggestion {
             riti_suggestion_free(suggestion)
             currentSuggestion = nil
@@ -756,24 +862,8 @@ class LekhoInputController: IMKInputController {
     }
 
     override func candidates(_ sender: Any!) -> [Any]! {
-        // Lonely (Single) suggestions have no candidate list — riti's
-        // get_length panics on that variant, so guard before calling it.
-        guard let suggestion = currentSuggestion,
-              !riti_suggestion_is_empty(suggestion),
-              !riti_suggestion_is_lonely(suggestion) else {
-            return []
-        }
-
-        let length = riti_suggestion_get_length(suggestion)
-        var result: [String] = []
-        for i in 0..<length {
-            let ptr = riti_suggestion_get_suggestion(suggestion, i)
-            if let ptr = ptr {
-                result.append(String(cString: ptr))
-                riti_string_free(ptr)
-            }
-        }
-        return result
+        // Already empty for lonely/empty suggestions (see resolveSelectedIndex).
+        return currentCandidates
     }
 }
 

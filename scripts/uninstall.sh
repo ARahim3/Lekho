@@ -25,7 +25,7 @@ fi
 # Remove old AvroBangla installation if present
 rm -rf "$INSTALL_DIR/AvroBangla.app" 2>/dev/null || true
 rm -f "/Applications/AvroBangla.app" 2>/dev/null || true
-rm -f "/Applications/$APP_NAME.app" 2>/dev/null || true
+rm -rf "/Applications/$APP_NAME.app" 2>/dev/null || true  # symlink from install.sh, or a real copy
 
 # Ask about user data
 if [ -d "$USER_DATA_DIR" ] || [ -f "$PREFS_FILE" ] || [ -d "$SAVED_STATE_DIR" ]; then
@@ -44,6 +44,25 @@ if [ -d "$USER_DATA_DIR" ] || [ -f "$PREFS_FILE" ] || [ -d "$SAVED_STATE_DIR" ];
         echo ">>> User data removed."
     else
         echo ">>> User data preserved."
+    fi
+fi
+
+# Fonts Lekho copied into ~/Library/Fonts at launch (same filenames as the bundle)
+USER_FONTS="$HOME/Library/Fonts"
+LEKHO_FONTS=()
+for f in "$USER_FONTS"/July-*.ttf "$USER_FONTS"/"BCC Purno"*.otf; do
+    [ -f "$f" ] && LEKHO_FONTS+=("$f")
+done
+if [ ${#LEKHO_FONTS[@]} -gt 0 ]; then
+    echo ""
+    echo "Fonts installed by Lekho (${#LEKHO_FONTS[@]} files in $USER_FONTS): July, BCC Purno"
+    read -p "Remove them too? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        rm -f "${LEKHO_FONTS[@]}"
+        echo ">>> Fonts removed."
+    else
+        echo ">>> Fonts kept."
     fi
 fi
 

@@ -5,15 +5,17 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_BUNDLE="$PROJECT_ROOT/build/Lekho.app"
 PKG_DIR="$PROJECT_ROOT/build/pkg_staging"
 DMG_DIR="$PROJECT_ROOT/build/dmg_staging"
-VERSION="0.2.5"
 PKG_OUTPUT="$PROJECT_ROOT/build/Lekho.pkg"
-DMG_OUTPUT="$PROJECT_ROOT/build/Lekho-${VERSION}.dmg"
 VOLUME_NAME="Lekho"
 
 if [ ! -d "$APP_BUNDLE" ]; then
     echo "Error: $APP_BUNDLE not found. Run 'make build' first."
     exit 1
 fi
+
+# Info.plist is the single source of truth for the version
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_BUNDLE/Contents/Info.plist")"
+DMG_OUTPUT="$PROJECT_ROOT/build/Lekho-${VERSION}.dmg"
 
 echo "=== Creating Installer Package ==="
 
@@ -104,11 +106,11 @@ pkgbuild \
     --nopayload \
     --scripts "$PKG_DIR/scripts" \
     --identifier "com.lekho.inputmethod.Lekho" \
-    --version "0.2.5" \
+    --version "$VERSION" \
     "$PKG_DIR/Lekho-component.pkg"
 
 # Create a distribution XML for a nicer installer UI
-cat > "$PKG_DIR/distribution.xml" << 'DISTXML'
+cat > "$PKG_DIR/distribution.xml" << DISTXML
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
     <title>Lekho</title>
@@ -137,7 +139,7 @@ and log back in for the keyboard to appear.
         <pkg-ref id="com.lekho.inputmethod.Lekho"/>
     </choice>
     <pkg-ref id="com.lekho.inputmethod.Lekho"
-             version="0.2.5"
+             version="$VERSION"
              onConclusion="none">Lekho-component.pkg</pkg-ref>
 </installer-gui-script>
 DISTXML
