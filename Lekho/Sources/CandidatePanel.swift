@@ -101,6 +101,8 @@ class CandidateView: NSView {
     private let rowHeight: CGFloat = 24
     private let auxHeight: CGFloat = 20
     private let maxVisibleCandidates = 9
+    /// System font for English/emoji candidates, bundled July for Bangla ones.
+    private static let candidateFont = NSFont.withBangla(.systemFont(ofSize: 16))
 
     func update(candidates: [String], auxiliaryText: String, selectedIndex: Int) {
         self.candidates = candidates
@@ -208,9 +210,8 @@ class CandidateView: NSView {
                 width: bounds.width - padding * 2 - 32,
                 height: rowHeight - 4
             )
-            let candidateFont = NSFont(name: "July", size: 16) ?? NSFont.systemFont(ofSize: 16)
             let textAttrs: [NSAttributedString.Key: Any] = [
-                .font: candidateFont,
+                .font: Self.candidateFont,
                 .foregroundColor: isSelected
                     ? NSColor.alternateSelectedControlTextColor
                     : NSColor.labelColor
@@ -281,6 +282,8 @@ class CandidateView: NSView {
         guard clickOffset >= 0 else { return nil }
 
         let rowIndex = Int(clickOffset / rowHeight)
+        // The bottom padding strip would otherwise map to the next, unseen row.
+        guard rowIndex < maxVisibleCandidates else { return nil }
         let candidateIndex = scrollOffset + rowIndex
         guard candidateIndex >= 0 && candidateIndex < candidates.count else { return nil }
         return candidateIndex

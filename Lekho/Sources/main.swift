@@ -61,13 +61,89 @@ func installMainMenu() {
 
 installMainMenu()
 
-func registerBundledFonts() {
-    guard let fontsURL = Bundle.main.url(forResource: "fonts", withExtension: nil) else { return }
-    var error: Unmanaged<CFError>?
-    CTFontManagerRegisterFontsForURL(fontsURL as CFURL, .process, &error)
+// Bundled fonts (Resources/fonts, recursive) are registered for this process by
+// Info.plist's ATSApplicationFontsPath before main runs — no code needed.
+
+// MARK: - System-wide font install
+
+/// Version of a font: head.fontRevision, or the name-table version string when
+/// that is higher (July Bold-Italic bumps one but not the other).
+private func fontVersion(_ font: CTFont) -> Double {
+    var version = 0.0
+    if let head = CTFontCopyTable(font, CTFontTableTag(kCTFontTableHead), []) as Data?, head.count >= 8 {
+        let fixed = head[4..<8].reduce(0) { ($0 << 8) | UInt32($1) }  // 16.16 big-endian
+        version = Double(Int32(bitPattern: fixed)) / 65536
+    }
+    if let s = CTFontCopyName(font, kCTFontVersionNameKey) as String?,
+       let r = s.range(of: #"\d+\.\d+"#, options: .regularExpression),
+       let named = Double(s[r]) {
+        version = max(version, named)
+    }
+    return version
 }
 
-registerBundledFonts()
+/// Load a font file without registering it.
+private func fontAtURL(_ url: URL) -> CTFont? {
+    guard let descs = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor],
+          let desc = descs.first else { return nil }
+    return CTFontCreateWithFontDescriptor(desc, 0, nil)
+}
+
+/// Copy the bundled fonts into ~/Library/Fonts so every app can use them. A copy
+/// the user already has is replaced only when the bundled one is newer. Copies in
+/// /Library/Fonts need admin rights to touch, so an older one there is shadowed by
+/// the user-domain copy instead (user fonts take precedence on macOS).
+func installBundledFontsSystemWide() {
+    let fm = FileManager.default
+    guard let bundleFonts = Bundle.main.url(forResource: "fonts", withExtension: nil),
+          let files = fm.enumerator(at: bundleFonts, includingPropertiesForKeys: nil) else { return }
+    let userFonts = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/Fonts")
+    try? fm.createDirectory(at: userFonts, withIntermediateDirectories: true)
+
+    for case let src as URL in files where ["ttf", "otf"].contains(src.pathExtension.lowercased()) {
+        guard let font = fontAtURL(src) else { continue }
+        let name = CTFontCopyPostScriptName(font) as String
+        let bundledVersion = fontVersion(font)
+
+        // Every installed copy of this face outside our bundle.
+        let query = CTFontDescriptorCreateWithAttributes([kCTFontNameAttribute: name] as CFDictionary)
+        let matches = CTFontDescriptorCreateMatchingFontDescriptors(
+            query, NSSet(array: [kCTFontNameAttribute]) as CFSet) as? [CTFontDescriptor] ?? []
+        let installed = matches
+            .compactMap { CTFontDescriptorCopyAttribute($0, kCTFontURLAttribute) as? URL }
+            .filter { !$0.path.hasPrefix(bundleFonts.path) }
+            .compactMap { url in fontAtURL(url).map { (url: url, version: fontVersion($0)) } }
+        if installed.contains(where: { $0.version >= bundledVersion }) { continue }
+
+        // Overwrite the user's older copy in place; otherwise add one.
+        let dest = installed.first { $0.url.path.hasPrefix(userFonts.path) }?.url
+            ?? userFonts.appendingPathComponent(src.lastPathComponent)
+        do {
+            if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
+            try fm.copyItem(at: src, to: dest)
+            NSLog("Lekho: installed font %@ %.3f -> %@", name, bundledVersion, dest.path)
+        } catch {
+            NSLog("Lekho: could not install font %@: %@", name, error.localizedDescription)
+        }
+    }
+}
+
+// Off the main thread so IMKServer startup isn't delayed; CoreText is thread-safe here.
+DispatchQueue.global(qos: .utility).async { installBundledFontsSystemWide() }
+
+extension NSFont {
+    /// `base` with the bundled July font as its Bangla fallback. One font object:
+    /// Latin/digits/emoji keep the system font, Bengali (which SF doesn't cover)
+    /// falls through to July — July-Bold when `base` is semibold or heavier.
+    static func withBangla(_ base: NSFont) -> NSFont {
+        let traits = base.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any]
+        let weight = traits?[.weight] as? CGFloat ?? 0
+        let face = weight >= NSFont.Weight.semibold.rawValue ? "July-Bold" : "July"
+        let desc = base.fontDescriptor.addingAttributes(
+            [.cascadeList: [NSFontDescriptor(name: face, size: base.pointSize)]])
+        return NSFont(descriptor: desc, size: base.pointSize) ?? base
+    }
+}
 
 // Register menu bar icon as template BEFORE IMKServer loads it —
 // PDF template icon: macOS auto-inverts for dark menu bars + Globe key overlay

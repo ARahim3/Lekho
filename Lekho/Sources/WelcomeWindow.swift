@@ -1,5 +1,4 @@
 import Cocoa
-import WebKit
 
 // MARK: - Window Controller (Singleton)
 
@@ -38,6 +37,9 @@ class WelcomeWindowController {
 class WelcomeTabView: NSView {
     private let tabView = NSTabView()
     private let segmented = NSSegmentedControl()
+    /// Tab content is built on first selection — the layout tab lays out ~70
+    /// cards, which shouldn't cost anything until it's actually opened.
+    private var pendingTabs: [Int: () -> NSView] = [:]
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -52,15 +54,15 @@ class WelcomeTabView: NSView {
         tabView.translatesAutoresizingMaskIntoConstraints = false
         tabView.tabViewType = .noTabsNoBorder
 
-        let items: [(String, String, NSView)] = [
-            ("start", "Getting Started", GettingStartedView()),
-            ("layout", "Avro Layout", LayoutWebView()),
-            ("settings", "Settings", SettingsView()),
+        let items: [(String, String, () -> NSView)] = [
+            ("start", "Getting Started", { GettingStartedView() }),
+            ("layout", "Avro Layout", { LayoutView() }),
+            ("settings", "Settings", { SettingsView() }),
         ]
-        for (id, label, view) in items {
+        for (index, (id, label, make)) in items.enumerated() {
             let item = NSTabViewItem(identifier: id)
             item.label = label
-            item.view = view
+            if index == 0 { item.view = make() } else { pendingTabs[index] = make }
             tabView.addTabViewItem(item)
         }
 
@@ -92,7 +94,11 @@ class WelcomeTabView: NSView {
     }
 
     @objc private func segmentChanged(_ sender: NSSegmentedControl) {
-        tabView.selectTabViewItem(at: sender.selectedSegment)
+        let index = sender.selectedSegment
+        if let make = pendingTabs.removeValue(forKey: index) {
+            tabView.tabViewItem(at: index).view = make()
+        }
+        tabView.selectTabViewItem(at: index)
     }
 }
 
@@ -122,13 +128,13 @@ enum WelcomeUI {
     }
 
     /// A monospace "key" chip used in the shortcut/layout lists.
-    static func keyChip(_ text: String) -> NSView {
+    static func keyChip(_ text: String, size: CGFloat = 11.5) -> NSView {
         let chip = RoundedTintView(
             cornerRadius: 5,
             fill: { NSColor.labelColor.withAlphaComponent(0.07) },
             border: { NSColor.separatorColor })
         let label = NSTextField(labelWithString: text)
-        label.font = NSFont.monospacedSystemFont(ofSize: 11.5, weight: .medium)
+        label.font = NSFont.withBangla(.monospacedSystemFont(ofSize: size, weight: .medium))
         label.textColor = .labelColor
         label.translatesAutoresizingMaskIntoConstraints = false
         chip.addSubview(label)
@@ -139,6 +145,67 @@ enum WelcomeUI {
             label.bottomAnchor.constraint(equalTo: chip.bottomAnchor, constant: -2),
         ])
         return chip
+    }
+
+    /// Card title row: accent SF Symbol + semibold title, optional subtitle.
+    static func cardHeader(symbol: String, title: String, subtitle: String? = nil) -> NSView {
+        let icon = NSImageView(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil)!)
+        icon.symbolConfiguration = .init(pointSize: 15, weight: .medium)
+        icon.contentTintColor = .controlAccentColor
+        icon.setContentHuggingPriority(.required, for: .horizontal)
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        let text = NSStackView(views: [titleLabel])
+        text.orientation = .vertical
+        text.alignment = .leading
+        text.spacing = 1
+        if let subtitle {
+            let sub = NSTextField(labelWithString: subtitle)
+            sub.font = NSFont.systemFont(ofSize: 12)
+            sub.textColor = .secondaryLabelColor
+            text.addArrangedSubview(sub)
+        }
+        let row = NSStackView(views: [icon, text])
+        row.spacing = 8
+        row.alignment = subtitle == nil ? .centerY : .top
+        row.translatesAutoresizingMaskIntoConstraints = false
+        return row
+    }
+
+    /// A vertically scrolling page pinned inside `host`; returns the stack to fill.
+    /// `bottomInset` reserves space under the scroll view (e.g. for a button bar).
+    static func scrollingPage(in host: NSView, bottomInset: CGFloat = 0) -> NSStackView {
+        let scrollView = NSScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
+        host.addSubview(scrollView)
+
+        let doc = NSView()
+        doc.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.documentView = doc
+
+        let page = NSStackView()
+        page.orientation = .vertical
+        page.alignment = .leading
+        page.spacing = 10
+        page.translatesAutoresizingMaskIntoConstraints = false
+        doc.addSubview(page)
+
+        NSLayoutConstraint.activate([
+            scrollView.topAnchor.constraint(equalTo: host.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -bottomInset),
+            doc.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+            doc.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+            doc.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
+            page.topAnchor.constraint(equalTo: doc.topAnchor, constant: 28),
+            page.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: pageInset),
+            page.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -pageInset),
+            page.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -28),
+        ])
+        return page
     }
 }
 
@@ -403,39 +470,7 @@ class GettingStartedView: NSView {
 
     private func setupUI() {
         setupCheckForUpdateButton()
-
-        let scrollView = NSScrollView()
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.hasVerticalScroller = true
-        scrollView.drawsBackground = false
-        addSubview(scrollView)
-        NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -44),
-        ])
-
-        let doc = NSView()
-        doc.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.documentView = doc
-
-        let page = NSStackView()
-        page.orientation = .vertical
-        page.alignment = .leading
-        page.spacing = 10
-        page.translatesAutoresizingMaskIntoConstraints = false
-        doc.addSubview(page)
-
-        NSLayoutConstraint.activate([
-            doc.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
-            doc.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
-            doc.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
-            page.topAnchor.constraint(equalTo: doc.topAnchor, constant: 28),
-            page.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: WelcomeUI.pageInset),
-            page.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -WelcomeUI.pageInset),
-            page.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -28),
-        ])
+        let page = WelcomeUI.scrollingPage(in: self, bottomInset: 44)
 
         // Hero
         let hero = makeHero()
@@ -443,10 +478,6 @@ class GettingStartedView: NSView {
         page.setCustomSpacing(24, after: hero)
 
         // Setup steps
-        let setupHeader = WelcomeUI.sectionHeader("Setup")
-        page.addArrangedSubview(setupHeader)
-        page.setCustomSpacing(8, after: setupHeader)
-
         let steps: [(Int, String, String?)] = [
             (1, "Log out and log back in", "Only if you just installed Lekho for the first time."),
             (2, "Open System Settings \u{2192} Keyboard \u{2192} Input Sources", nil),
@@ -458,18 +489,19 @@ class GettingStartedView: NSView {
         stepStack.alignment = .leading
         stepStack.spacing = 12
         stepStack.translatesAutoresizingMaskIntoConstraints = false
+        let setupHeader = WelcomeUI.cardHeader(
+            symbol: "lightbulb", title: "Get started in seconds",
+            subtitle: "Follow these steps to start typing in Bangla.")
+        stepStack.addArrangedSubview(setupHeader)
+        stepStack.setCustomSpacing(16, after: setupHeader)
         for (n, title, note) in steps {
             let row = makeStepRow(number: n, title: title, note: note)
             stepStack.addArrangedSubview(row)
             row.widthAnchor.constraint(equalTo: stepStack.widthAnchor).isActive = true
         }
-        addFullWidth(CardContainer(content: stepStack), to: page, spacingAfter: 22)
+        addFullWidth(CardContainer(content: stepStack), to: page, spacingAfter: 16)
 
         // How to type
-        let typeHeader = WelcomeUI.sectionHeader("How to type")
-        page.addArrangedSubview(typeHeader)
-        page.setCustomSpacing(8, after: typeHeader)
-
         let shortcuts: [(String, String)] = [
             ("ami \u{2192} \u{0986}\u{09AE}\u{09BF}", "Type in English, phonetically"),
             ("Space", "Commit the highlighted suggestion"),
@@ -483,11 +515,12 @@ class GettingStartedView: NSView {
         scStack.alignment = .leading
         scStack.spacing = 10
         scStack.translatesAutoresizingMaskIntoConstraints = false
-        for (key, desc) in shortcuts {
-            let row = makeShortcutRow(key: key, desc: desc)
-            scStack.addArrangedSubview(row)
-            row.widthAnchor.constraint(equalTo: scStack.widthAnchor).isActive = true
-        }
+        let typeHeader = WelcomeUI.cardHeader(symbol: "keyboard", title: "How to type")
+        scStack.addArrangedSubview(typeHeader)
+        scStack.setCustomSpacing(14, after: typeHeader)
+        let table = makeShortcutTable(shortcuts)
+        scStack.addArrangedSubview(table)
+        table.widthAnchor.constraint(equalTo: scStack.widthAnchor).isActive = true
         addFullWidth(CardContainer(content: scStack), to: page, spacingAfter: 16)
 
         // Tip
@@ -599,29 +632,43 @@ class GettingStartedView: NSView {
         return row
     }
 
-    private func makeShortcutRow(key: String, desc: String) -> NSView {
-        let row = NSView()
-        row.translatesAutoresizingMaskIntoConstraints = false
+    /// Key → action table: header row, a rule, then one row per shortcut. NSGridView
+    /// keeps the two columns aligned; the action column absorbs the spare width.
+    private func makeShortcutTable(_ shortcuts: [(String, String)]) -> NSView {
+        let grid = NSGridView()
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        grid.rowSpacing = 10
+        grid.columnSpacing = 24
+        grid.yPlacement = .center
 
-        let chip = WelcomeUI.keyChip(key)
-        chip.setContentHuggingPriority(.required, for: .horizontal)
-        let descLabel = NSTextField(wrappingLabelWithString: desc)
-        descLabel.font = NSFont.systemFont(ofSize: 12)
-        descLabel.textColor = .secondaryLabelColor
-        descLabel.translatesAutoresizingMaskIntoConstraints = false
+        func header(_ text: String) -> NSTextField {
+            let label = NSTextField(labelWithString: text.uppercased())
+            label.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
+            label.textColor = .secondaryLabelColor
+            return label
+        }
+        grid.addRow(with: [header("Key"), header("Action")])
 
-        row.addSubview(chip)
-        row.addSubview(descLabel)
-        NSLayoutConstraint.activate([
-            chip.leadingAnchor.constraint(equalTo: row.leadingAnchor),
-            chip.topAnchor.constraint(equalTo: row.topAnchor),
-            chip.bottomAnchor.constraint(lessThanOrEqualTo: row.bottomAnchor),
-            descLabel.leadingAnchor.constraint(equalTo: chip.trailingAnchor, constant: 12),
-            descLabel.trailingAnchor.constraint(equalTo: row.trailingAnchor),
-            descLabel.topAnchor.constraint(equalTo: row.topAnchor, constant: 1),
-            descLabel.bottomAnchor.constraint(equalTo: row.bottomAnchor),
-        ])
-        return row
+        let rule = NSBox()
+        rule.boxType = .separator
+        let ruleRow = grid.addRow(with: [rule, NSGridCell.emptyContentView])
+        ruleRow.mergeCells(in: NSRange(location: 0, length: 2))
+        ruleRow.cell(at: 0).xPlacement = .fill
+
+        var chips: [NSView] = []
+        for (key, desc) in shortcuts {
+            let chip = WelcomeUI.keyChip(key, size: 13)
+            chips.append(chip)
+            let label = NSTextField(labelWithString: desc)
+            label.font = NSFont.systemFont(ofSize: 14)
+            grid.addRow(with: [chip, label])
+        }
+        // Spare width would otherwise be split across both columns; pin the key
+        // column to its widest chip so the actions sit right next to the keys.
+        grid.column(at: 0).width = chips.map { $0.fittingSize.width }.max() ?? 0
+        grid.column(at: 0).xPlacement = .leading
+        grid.column(at: 1).xPlacement = .fill
+        return grid
     }
 
     private func makeFooter() -> NSView {
@@ -793,258 +840,137 @@ class GettingStartedView: NSView {
     }
 }
 
-// MARK: - Avro Layout Tab (WKWebView for proper Bengali rendering)
+// MARK: - Avro Layout Tab (searchable card grid)
 
-class LayoutWebView: NSView {
-    private var webView: WKWebView!
+/// Bangla ↔ Avro key mapping. Vowels show the independent letter and its sign on ক;
+/// standalone combining marks sit on a dotted circle (◌) so they're visible.
+/// Verified against riti: ` breaks joining (k`i → কই, not কি); ~ is a literal, not
+/// ZWNJ; there is no standalone nukta key (ড় ঢ় য় come from R, Rh, y).
+private let layoutSections: [(title: String, symbol: String, items: [(bn: String, key: String)])] = [
+    ("Consonants", "textformat", [
+        ("ক", "k"), ("খ", "kh"), ("গ", "g"), ("ঘ", "gh"), ("ঙ", "Ng"),
+        ("চ", "c"), ("ছ", "ch"), ("জ", "j"), ("ঝ", "jh"), ("ঞ", "NG"),
+        ("ট", "T"), ("ঠ", "Th"), ("ড", "D"), ("ঢ", "Dh"), ("ণ", "N"),
+        ("ত", "t"), ("থ", "th"), ("দ", "d"), ("ধ", "dh"), ("ন", "n"),
+        ("প", "p"), ("ফ", "ph, f"), ("ব", "b"), ("ভ", "bh, v"), ("ম", "m"),
+        ("য", "z"), ("র", "r"), ("ল", "l"), ("শ", "sh, S"), ("ষ", "Sh"),
+        ("স", "s"), ("হ", "h"), ("ড়", "R"), ("ঢ়", "Rh"), ("য়", "y, Y"),
+        ("ৎ", "t``"), ("ং", "ng"), ("ঃ", ":"), ("◌ঁ", "^"),
+    ]),
+    ("Vowels", "character", [
+        ("অ", "o"), ("আ / কা", "a"), ("ই / কি", "i"), ("ঈ / কী", "I"), ("উ / কু", "u"),
+        ("ঊ / কূ", "U"), ("ঋ / কৃ", "rri"), ("এ / কে", "e"), ("ঐ / কৈ", "OI"), ("ও / কো", "O"),
+        ("ঔ / কৌ", "OU"),
+    ]),
+    ("Special", "sparkles", [
+        ("◌্ হসন্ত", ",,"), ("ব-ফলা", "w"), ("য-ফলা", "y, Z"), ("র-ফলা", "r"), ("রেফ", "rr"),
+        ("। দাড়ি", "."), ("৳ টাকা", "$"), ("Separator", "`"),
+    ]),
+    ("Numbers", "number", [
+        ("০", "0"), ("১", "1"), ("২", "2"), ("৩", "3"), ("৪", "4"),
+        ("৫", "5"), ("৬", "6"), ("৭", "7"), ("৮", "8"), ("৯", "9"),
+    ]),
+]
+
+class LayoutView: NSView {
+    private let search = NSSearchField()
+    private let sections = NSStackView()
+    private let columns = 5
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        setupWebView()
+        setupUI()
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    private func setupWebView() {
-        let config = WKWebViewConfiguration()
-        webView = WKWebView(frame: .zero, configuration: config)
-        webView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(webView)
+    private func setupUI() {
+        let page = WelcomeUI.scrollingPage(in: self)
 
-        NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: topAnchor),
-            webView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
+        search.placeholderString = "Search keys, characters…"
+        search.sendsSearchStringImmediately = true
+        search.target = self
+        search.action = #selector(searchChanged)
+        page.addArrangedSubview(search)
+        search.widthAnchor.constraint(equalTo: page.widthAnchor).isActive = true
+        page.setCustomSpacing(16, after: search)
 
-        webView.loadHTMLString(layoutHTML(), baseURL: Bundle.main.resourceURL)
+        sections.orientation = .vertical
+        sections.alignment = .leading
+        sections.spacing = 16
+        page.addArrangedSubview(sections)
+        sections.widthAnchor.constraint(equalTo: page.widthAnchor).isActive = true
+
+        rebuild(filter: "")
     }
 
-    private func layoutHTML() -> String {
-        return """
-            <!DOCTYPE html>
-            <html>
-            <head>
-            <meta charset="utf-8">
-            <style>
-                @font-face {
-                    font-family: 'July';
-                    src: url('fonts/July/July-Regular.ttf') format('truetype');
-                    font-weight: normal;
-                    font-style: normal;
-                }
-                @font-face {
-                    font-family: 'July';
-                    src: url('fonts/July/July-Bold.ttf') format('truetype');
-                    font-weight: bold;
-                    font-style: normal;
-                }
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                :root {
-                    --accent: #007aff;
-                    --text: #1d1d1f;
-                    --text-secondary: #8a8a8e;
-                    --card-bg: rgba(0, 0, 0, 0.025);
-                    --card-border: rgba(0, 0, 0, 0.10);
-                    --row-border: rgba(0, 0, 0, 0.06);
-                }
-                @media (prefers-color-scheme: dark) {
-                    :root {
-                        --accent: #6cb4ee;
-                        --text: #f2f2f7;
-                        --text-secondary: #98989d;
-                        --card-bg: rgba(255, 255, 255, 0.05);
-                        --card-border: rgba(255, 255, 255, 0.12);
-                        --row-border: rgba(255, 255, 255, 0.07);
-                    }
-                }
-                body {
-                    font-family: "July", -apple-system, "Helvetica Neue", sans-serif;
-                    padding: 16px 18px;
-                    background: transparent;
-                    color-scheme: light dark;
-                    color: var(--text);
-                }
-                .section-title {
-                    color: var(--text-secondary);
-                    font-size: 10.5px;
-                    font-weight: 600;
-                    letter-spacing: 0.5px;
-                    text-transform: uppercase;
-                    margin: 16px 0 5px 2px;
-                }
-                .section-title:first-child { margin-top: 0; }
-                table {
-                    width: 100%;
-                    table-layout: fixed;
-                    border-collapse: separate;
-                    border-spacing: 0;
-                    background: var(--card-bg);
-                    border: 1px solid var(--card-border);
-                    border-radius: 10px;
-                    overflow: hidden;
-                }
-                td {
-                    padding: 4px 6px;
-                    border-bottom: 1px solid var(--row-border);
-                    vertical-align: middle;
-                    font-size: 12px;
-                    line-height: 1.35;
-                }
-                tr:last-child td { border-bottom: none; }
-                .bn {
-                    font-size: 15px;
-                    font-weight: 500;
-                    color: var(--text);
-                    width: 34px;
-                    text-align: center;
-                }
-                .key {
-                    font-size: 11px;
-                    font-weight: 600;
-                    color: var(--accent);
-                    font-family: "SF Mono", Menlo, monospace;
-                }
-                .pair { width: 25%; }
-                .pair-wide { width: 33.33%; }
-                .sep { width: 10px; }
-            </style>
-            </head>
-            <body>
+    @objc private func searchChanged() { rebuild(filter: search.stringValue) }
 
-            <div class="section-title">Consonants \u{09AC}\u{09CD}\u{09AF}\u{099E}\u{09CD}\u{099C}\u{09A8}\u{09AC}\u{09B0}\u{09CD}\u{09A3}</div>
-            <table>
-            <tr>
-                <td class="bn pair">\u{0995}</td><td class="key">k</td><td class="sep"></td>
-                <td class="bn pair">\u{099F}</td><td class="key">T</td><td class="sep"></td>
-                <td class="bn pair">\u{09AA}</td><td class="key">p</td><td class="sep"></td>
-                <td class="bn pair">\u{09B8}</td><td class="key">s</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{0996}</td><td class="key">kh</td><td class="sep"></td>
-                <td class="bn">\u{09A0}</td><td class="key">Th</td><td class="sep"></td>
-                <td class="bn">\u{09AB}</td><td class="key">ph, f</td><td class="sep"></td>
-                <td class="bn">\u{09B9}</td><td class="key">h</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{0997}</td><td class="key">g</td><td class="sep"></td>
-                <td class="bn">\u{09A1}</td><td class="key">D</td><td class="sep"></td>
-                <td class="bn">\u{09AC}</td><td class="key">b</td><td class="sep"></td>
-                <td class="bn">\u{09DC}</td><td class="key">R</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{0998}</td><td class="key">gh</td><td class="sep"></td>
-                <td class="bn">\u{09A2}</td><td class="key">Dh</td><td class="sep"></td>
-                <td class="bn">\u{09AD}</td><td class="key">bh, v</td><td class="sep"></td>
-                <td class="bn">\u{09DD}</td><td class="key">Rh</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{0999}</td><td class="key">Ng</td><td class="sep"></td>
-                <td class="bn">\u{09A3}</td><td class="key">N</td><td class="sep"></td>
-                <td class="bn">\u{09AE}</td><td class="key">m</td><td class="sep"></td>
-                <td class="bn">\u{09DF}</td><td class="key">y, Y</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{099A}</td><td class="key">c</td><td class="sep"></td>
-                <td class="bn">\u{09A4}</td><td class="key">t</td><td class="sep"></td>
-                <td class="bn">\u{09AF}</td><td class="key">z</td><td class="sep"></td>
-                <td class="bn">\u{09B6}</td><td class="key">sh, S</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{099B}</td><td class="key">ch</td><td class="sep"></td>
-                <td class="bn">\u{09A5}</td><td class="key">th</td><td class="sep"></td>
-                <td class="bn">\u{09B0}</td><td class="key">r</td><td class="sep"></td>
-                <td class="bn">\u{09B7}</td><td class="key">Sh</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{099C}</td><td class="key">j</td><td class="sep"></td>
-                <td class="bn">\u{09A6}</td><td class="key">d</td><td class="sep"></td>
-                <td class="bn">\u{09B2}</td><td class="key">l</td><td class="sep"></td>
-                <td class="bn">\u{0982}</td><td class="key">ng</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{099D}</td><td class="key">jh</td><td class="sep"></td>
-                <td class="bn">\u{09A7}</td><td class="key">dh</td><td class="sep"></td>
-                <td class="bn">\u{0983}</td><td class="key">:</td><td class="sep"></td>
-                <td class="bn">\u{0981}</td><td class="key">^</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{099E}</td><td class="key">NG</td><td class="sep"></td>
-                <td class="bn">\u{09A8}</td><td class="key">n</td><td class="sep"></td>
-                <td class="bn">\u{09CE}</td><td class="key">t``</td><td class="sep"></td>
-                <td class="bn"></td><td class="key"></td>
-            </tr>
-            </table>
+    /// Cards are cheap (~70), so filtering just rebuilds the grid.
+    private func rebuild(filter: String) {
+        sections.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        let q = filter.trimmingCharacters(in: .whitespaces).lowercased()
+        for section in layoutSections {
+            let items = q.isEmpty ? section.items
+                : section.items.filter { $0.key.lowercased().contains(q) || $0.bn.contains(q) }
+            if items.isEmpty { continue }
+            let card = CardContainer(
+                content: makeSection(section.title, symbol: section.symbol, items: items),
+                insets: NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14))
+            sections.addArrangedSubview(card)
+            card.widthAnchor.constraint(equalTo: sections.widthAnchor).isActive = true
+        }
+    }
 
-            <div class="section-title">Vowels \u{09B8}\u{09CD}\u{09AC}\u{09B0}\u{09AC}\u{09B0}\u{09CD}\u{09A3}</div>
-            <table>
-            <tr>
-                <td class="bn pair-wide">\u{0985}</td><td class="key">o</td><td class="sep"></td>
-                <td class="bn pair-wide">\u{0987} / \u{0995}\u{09BF}</td><td class="key">i</td><td class="sep"></td>
-                <td class="bn pair-wide">\u{0989} / \u{0995}\u{09C1}</td><td class="key">u</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{0986} / \u{0995}\u{09BE}</td><td class="key">a</td><td class="sep"></td>
-                <td class="bn">\u{0988} / \u{0995}\u{09C0}</td><td class="key">I</td><td class="sep"></td>
-                <td class="bn">\u{098A} / \u{0995}\u{09C2}</td><td class="key">U</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{098B} / \u{0995}\u{09C3}</td><td class="key">rri</td><td class="sep"></td>
-                <td class="bn">\u{098F} / \u{0995}\u{09C7}</td><td class="key">e</td><td class="sep"></td>
-                <td class="bn">\u{0993} / \u{0995}\u{09CB}</td><td class="key">O</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{0990} / \u{0995}\u{09C8}</td><td class="key">OI</td><td class="sep"></td>
-                <td class="bn">\u{0994} / \u{0995}\u{09CC}</td><td class="key">OU</td><td class="sep"></td>
-                <td class="bn"></td><td class="key"></td>
-            </tr>
-            </table>
+    private func makeSection(_ title: String, symbol: String, items: [(bn: String, key: String)]) -> NSView {
+        let grid = NSStackView()
+        grid.orientation = .vertical
+        grid.spacing = 8
+        for start in stride(from: 0, to: items.count, by: columns) {
+            let row = NSStackView()
+            row.distribution = .fillEqually
+            row.spacing = 8
+            for item in items[start..<min(start + columns, items.count)] {
+                row.addArrangedSubview(makeCard(item))
+            }
+            // Pad the last row so its cards keep the same width as the others.
+            while row.arrangedSubviews.count < columns { row.addArrangedSubview(NSView()) }
+            grid.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: grid.widthAnchor).isActive = true
+        }
 
-            <div class="section-title">Special</div>
-            <table>
-            <tr>
-                <td class="bn pair-wide">\u{09CD} \u{09B9}\u{09B8}\u{09A8}\u{09CD}\u{09A4}</td><td class="key">,,</td><td class="sep"></td>
-                <td class="bn pair-wide">\u{09AC}-\u{09AB}\u{09B2}\u{09BE}</td><td class="key">w</td><td class="sep"></td>
-                <td class="bn pair-wide">\u{09B0}\u{09C7}\u{09AB}</td><td class="key">rr (v)</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{09BC} \u{09A8}\u{09C1}\u{0995}\u{09CD}\u{09A4}\u{09BE}</td><td class="key">..</td><td class="sep"></td>
-                <td class="bn">\u{09AF}-\u{09AB}\u{09B2}\u{09BE}</td><td class="key">y, Z</td><td class="sep"></td>
-                <td class="bn">\u{0964} \u{09A6}\u{09BE}\u{09DC}\u{09BF}</td><td class="key">.</td>
-            </tr>
-            <tr>
-                <td class="bn">ZWJ</td><td class="key">`</td><td class="sep"></td>
-                <td class="bn">\u{09B0}-\u{09AB}\u{09B2}\u{09BE}</td><td class="key">r</td><td class="sep"></td>
-                <td class="bn">\u{09F3} \u{099F}\u{09BE}\u{0995}\u{09BE}</td><td class="key">$</td>
-            </tr>
-            <tr>
-                <td class="bn">ZWNJ</td><td class="key">~</td><td class="sep"></td>
-                <td class="bn"></td><td class="key"></td><td class="sep"></td>
-                <td class="bn"></td><td class="key"></td>
-            </tr>
-            </table>
+        let header = WelcomeUI.cardHeader(symbol: symbol, title: title)
+        let content = NSStackView(views: [header, grid])
+        content.orientation = .vertical
+        content.alignment = .leading
+        content.spacing = 12
+        grid.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
+        return content
+    }
 
-            <div class="section-title">Numbers \u{09B8}\u{0982}\u{0996}\u{09CD}\u{09AF}\u{09BE}</div>
-            <table>
-            <tr>
-                <td class="bn">\u{09E6}</td><td class="key">0</td><td class="sep"></td>
-                <td class="bn">\u{09E7}</td><td class="key">1</td><td class="sep"></td>
-                <td class="bn">\u{09E8}</td><td class="key">2</td><td class="sep"></td>
-                <td class="bn">\u{09E9}</td><td class="key">3</td><td class="sep"></td>
-                <td class="bn">\u{09EA}</td><td class="key">4</td>
-            </tr>
-            <tr>
-                <td class="bn">\u{09EB}</td><td class="key">5</td><td class="sep"></td>
-                <td class="bn">\u{09EC}</td><td class="key">6</td><td class="sep"></td>
-                <td class="bn">\u{09ED}</td><td class="key">7</td><td class="sep"></td>
-                <td class="bn">\u{09EE}</td><td class="key">8</td><td class="sep"></td>
-                <td class="bn">\u{09EF}</td><td class="key">9</td>
-            </tr>
-            </table>
-
-            </body>
-            </html>
-            """
+    private func makeCard(_ item: (bn: String, key: String)) -> NSView {
+        let card = RoundedTintView(
+            cornerRadius: 8,
+            fill: { .controlBackgroundColor },
+            border: { .separatorColor })
+        let bn = NSTextField(labelWithString: item.bn)
+        bn.font = NSFont.withBangla(.systemFont(ofSize: 17, weight: .medium))
+        bn.alignment = .center
+        let key = NSTextField(labelWithString: item.key)
+        key.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
+        key.textColor = .secondaryLabelColor
+        key.alignment = .center
+        let stack = NSStackView(views: [bn, key])
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 1
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(stack)
+        NSLayoutConstraint.activate([
+            card.heightAnchor.constraint(equalToConstant: 58),
+            stack.centerXAnchor.constraint(equalTo: card.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: card.centerYAnchor),
+        ])
+        return card
     }
 }
