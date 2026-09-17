@@ -106,11 +106,11 @@ pkgbuild \
     --nopayload \
     --scripts "$PKG_DIR/scripts" \
     --identifier "com.lekho.inputmethod.Lekho" \
-    --version "0.2.5" \
+    --version "$VERSION" \
     "$PKG_DIR/Lekho-component.pkg"
 
 # Create a distribution XML for a nicer installer UI
-cat > "$PKG_DIR/distribution.xml" << 'DISTXML'
+cat > "$PKG_DIR/distribution.xml" << DISTXML
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
     <title>Lekho</title>
@@ -139,7 +139,7 @@ and log back in for the keyboard to appear.
         <pkg-ref id="com.lekho.inputmethod.Lekho"/>
     </choice>
     <pkg-ref id="com.lekho.inputmethod.Lekho"
-             version="0.2.5"
+             version="$VERSION"
              onConclusion="none">Lekho-component.pkg</pkg-ref>
 </installer-gui-script>
 DISTXML
