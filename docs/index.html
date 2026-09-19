@@ -24,7 +24,7 @@
         />
         <meta
             property="og:description"
-            content="Native Apple Silicon Bengali keyboard. Free. ~2.6MB. Just works."
+            content="Native Apple Silicon Bengali keyboard. Free. ~2.2MB. Just works."
         />
         <meta property="og:type" content="website" />
         <meta
@@ -41,7 +41,7 @@
         />
         <meta
             name="twitter:description"
-            content="Native Apple Silicon Bengali keyboard. Free. ~2.6MB. Just works."
+            content="Native Apple Silicon Bengali keyboard. Free. ~2.2MB. Just works."
         />
         <meta
             name="twitter:image"
@@ -61,7 +61,7 @@
             "processorRequirements": "Apple Silicon (M1, M2, M3, M4, M5)",
             "applicationCategory": "UtilitiesApplication",
             "applicationSubCategory": "Input Method",
-            "fileSize": "2.7MB",
+            "fileSize": "2.2MB",
             "offers": {
                 "@type": "Offer",
                 "price": "0",
@@ -72,7 +72,7 @@
                 "name": "Abdur Rahim",
                 "url": "https://github.com/ARahim3"
             },
-            "softwareVersion": "0.2",
+            "softwareVersion": "0.3",
             "license": "https://opensource.org/licenses/MPL-2.0",
             "inLanguage": ["en", "bn"],
             "keywords": "avro keyboard mac, bangla keyboard macos, bengali typing macbook, avro phonetic apple silicon"
@@ -146,6 +146,14 @@
                     "acceptedAnswer": {
                         "@type": "Answer",
                         "text": "Yes. Run 'brew install --cask arahim3/lekho/lekho' to install — the fully-qualified form auto-taps the personal tap, so it works in a single command. Update with 'brew upgrade --cask lekho' and uninstall with 'brew uninstall --cask lekho'. Both Homebrew and the GitHub Releases DMG are supported install paths."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can I turn off emoji or the suggestion popup?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Yes. Open the Lekho app and go to Settings. Turn off 'Show emoji in suggestions' to keep the suggestion popup without emoji, or choose Phonetic-only mode for no popup at all. Phonetic-first mode types exactly what you spell and keeps the suggestions right below it."
                     }
                 }
             ]
@@ -1796,7 +1804,7 @@
                 <div class="hero-content">
                     <div class="hero-badge">
                         <span class="hero-badge-dot"></span>
-                        v0.2 — Works everywhere, improved &amp; polished
+                        v0.3 — Types exactly what you spell. Emoji optional.
                     </div>
                     <h1>
                         Avro Phonetic typing is<br /><span class="highlight"
@@ -1842,7 +1850,7 @@
                     </div>
                     <div class="hero-meta">
                         <div class="hero-meta-item">
-                            <span class="hero-meta-value">~2.7 MB</span>
+                            <span class="hero-meta-value">~2.2 MB</span>
                             <span class="hero-meta-label">Download</span>
                         </div>
                         <div class="hero-meta-item">
@@ -1927,15 +1935,16 @@
                             <span class="bangla" lang="bn">কান্না</span> suggests 😢,
                             <span class="bangla" lang="bn">বাংলাদেশ</span> suggests 🇧🇩.
                             Your preferred candidates are remembered.
-                            All optional — choose <em>Phonetic-first</em> to commit
-                            your exact spelling by default with the suggestion list
-                            still a keypress away, or <em>Phonetic-only</em> for none
-                            at all. Switch anytime in Settings.
+                            All optional — choose <em>Phonetic-first</em> to get
+                            exactly what you spelled, with the suggestion list
+                            right below it, or <em>Phonetic-only</em> for no popup
+                            at all. Don't want emoji? One switch turns them off.
+                            Change anytime in Settings.
                         </p>
                     </div>
                     <div class="feature-card animate-on-scroll">
                         <div class="feature-icon">🪶</div>
-                        <h3>~2.7 MB. Zero Bloat.</h3>
+                        <h3>~2.2 MB. Zero Bloat.</h3>
                         <p>
                             Native Apple Silicon binary. No Electron, no Java,
                             no background daemon. Instant startup, zero CPU when
@@ -2047,7 +2056,7 @@
                     </div>
                 </div>
                 <div class="install-note animate-on-scroll">
-                    <strong>v0.2:</strong> Works everywhere — Chrome, Notes, Mail, Obsidian, you name it. Found a bug?
+                    <strong>v0.3:</strong> Works everywhere — Chrome, Notes, Mail, Obsidian, you name it. Found a bug?
                     <a
                         href="https://github.com/ARahim3/Lekho/issues"
                         target="_blank"
@@ -2224,6 +2233,24 @@
                         Install Lekho, then go to System Settings → Keyboard → Input Sources → click + →
                         search "Lekho" → Add. Switch to it with the Globe key or Ctrl+Space. Then just type
                         in English and it converts to Bengali phonetically — for example, type "ami" to get "আমি".
+                    </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>Can I install Lekho with Homebrew?</summary>
+                    <p>
+                        Yes. Run <code>brew install --cask arahim3/lekho/lekho</code> and you're done.
+                        Update with <code>brew upgrade --cask lekho</code>, remove with
+                        <code>brew uninstall --cask lekho</code>. Prefer not to use Homebrew? The DMG from
+                        GitHub Releases works just as well.
+                    </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>Can I turn off emoji or the suggestion popup?</summary>
+                    <p>
+                        Yes. Open the Lekho app and go to <strong>Settings</strong>. Turn off
+                        <em>Show emoji in suggestions</em> to keep the suggestion popup without emoji, or pick
+                        <em>Phonetic-only</em> for no popup at all. <em>Phonetic-first</em> types exactly
+                        what you spell and keeps the suggestions right below it.
                     </p>
                 </details>
             </section>
