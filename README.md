@@ -29,7 +29,7 @@ Lekho is built natively for Apple Silicon — no Rosetta required, future-proof 
 - **150k word dictionary** with smart suggestions and autocorrect
 - **Smart emoji suggestions** — type কান্না and get 😢, বাংলাদেশ and get 🇧🇩, right in the candidate panel
 - **Three typing modes** — *Phonetic-first* (default: your exact spelling by default with the suggestion list still one keypress away), *Smart* (suggestions, autocorrect, and emoji pick the word for you), or *Phonetic-only* (pure character-by-character control, no popup). Switch anytime in Settings.
-- **Native Apple Silicon** — ~2.7 MB, instant startup, zero CPU when idle
+- **Native Apple Silicon** — ~2.2 MB, instant startup, zero CPU when idle
 - **Works on all Apple Silicon Macs** — MacBook Air, MacBook Pro, iMac, Mac Mini, Mac Studio (M1/M2/M3/M4/M5)
 - **Works everywhere** — built with Apple's InputMethodKit framework
 - **Completely offline** — no internet, no data collection, no telemetry
@@ -80,6 +80,8 @@ Open the **Settings** tab in the Lekho window to pick how typing behaves:
 - **Smart suggestions** — dictionary, autocorrect, and emoji pick the best-matching word when you press space.
 - **Phonetic-only** — pure transliteration, no suggestion popup, autocorrect, or emoji.
 
+Prefer suggestions without emoji? Turn off **Show emoji in suggestions** in the same tab.
+
 Changes apply immediately — no restart needed.
 
 ## Requirements
@@ -119,6 +121,8 @@ Swift (InputMethodKit)  ←→  Rust Engine (riti) via C FFI
 ## Contributing
 
 Contributions are highly welcome! Whether it's reporting a bug, suggesting a feature, or submitting a pull request to improve the Swift or Rust codebases, feel free to get involved.
+
+For anything bigger than a small bug fix, please open an issue before writing code — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 
 ## Credits

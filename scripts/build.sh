@@ -55,7 +55,7 @@ echo ">>> Rust library built: $FINAL_LIB"
 echo ">>> Creating app bundle..."
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
-mkdir -p "$APP_BUNDLE/Contents/Resources/data"
+mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 # Copy Info.plist
 cp "$SWIFT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
@@ -64,8 +64,8 @@ cp "$SWIFT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 cp "$SWIFT_DIR/Resources/iconTemplate.pdf" "$APP_BUNDLE/Contents/Resources/iconTemplate.pdf"
 cp "$SWIFT_DIR/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
-# Copy data files
-cp "$PROJECT_ROOT/data/"*.json "$APP_BUNDLE/Contents/Resources/data/"
+# riti compiles its dictionary/autocorrect/suffix/emoji data into the static
+# library, so the data/ folder is not bundled.
 
 # Create PkgInfo
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
@@ -76,6 +76,7 @@ echo ">>> Compiling Swift sources..."
 SWIFT_SOURCES=(
     "$SWIFT_DIR/Sources/AppDelegate.swift"
     "$SWIFT_DIR/Sources/CandidatePanel.swift"
+    "$SWIFT_DIR/Sources/Engine.swift"
     "$SWIFT_DIR/Sources/InputController.swift"
     "$SWIFT_DIR/Sources/WelcomeWindow.swift"
     "$SWIFT_DIR/Sources/main.swift"

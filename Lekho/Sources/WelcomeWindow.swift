@@ -313,6 +313,8 @@ final class ModeCard: NSView {
 
 class SettingsView: NSView {
     private var cards: [ModeCard] = []
+    private let emojiSwitch = NSSwitch()
+    private let emojiTitle = NSTextField(labelWithString: "Show emoji in suggestions")
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -341,7 +343,7 @@ class SettingsView: NSView {
              "Dictionary, autocorrect, and emoji choose the best-matching word when you press space. Press a number, the arrow keys, or click to pick another.",
              false),
             (.phoneticFirst, "Phonetic-first",
-             "Your exact phonetic spelling is committed by default, but the suggestion list is still right there — reach for a dictionary word whenever you want one. Lekho remembers the words you deliberately pick.",
+             "Exactly what Phonetic-only would type, listed first and committed by default — with the dictionary suggestions right below it whenever you want one. Lekho remembers the words you deliberately pick.",
              true),
             (.phoneticOnly, "Phonetic-only",
              "Pure transliteration with no suggestion popup, autocorrect, or emoji. Full control over every word — but no dictionary fixes for irregular spellings.",
@@ -356,11 +358,16 @@ class SettingsView: NSView {
             card.widthAnchor.constraint(equalTo: cardStack.widthAnchor).isActive = true
         }
 
-        let content = NSStackView(views: [header, intro, cardStack])
+        let suggestionsHeader = WelcomeUI.sectionHeader("Suggestions")
+        let emojiCard = makeEmojiCard()
+
+        let content = NSStackView(views: [header, intro, cardStack, suggestionsHeader, emojiCard])
         content.orientation = .vertical
         content.alignment = .leading
         content.spacing = 6
         content.setCustomSpacing(18, after: intro)
+        content.setCustomSpacing(26, after: cardStack)
+        content.setCustomSpacing(10, after: suggestionsHeader)
         content.translatesAutoresizingMaskIntoConstraints = false
         addSubview(content)
 
@@ -377,6 +384,7 @@ class SettingsView: NSView {
             content.topAnchor.constraint(equalTo: topAnchor, constant: 28),
             cardStack.widthAnchor.constraint(equalTo: content.widthAnchor),
             intro.widthAnchor.constraint(equalTo: content.widthAnchor),
+            emojiCard.widthAnchor.constraint(equalTo: content.widthAnchor),
 
             tip.leadingAnchor.constraint(equalTo: leadingAnchor, constant: WelcomeUI.pageInset),
             tip.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -WelcomeUI.pageInset),
@@ -384,8 +392,53 @@ class SettingsView: NSView {
         ])
     }
 
+    /// "Show emoji in suggestions" row: title + description on the left, switch
+    /// on the right.
+    private func makeEmojiCard() -> NSView {
+        emojiTitle.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+
+        let desc = NSTextField(wrappingLabelWithString:
+            "Emoji like 🔥 show up next to matching words in the suggestion list. Turn this off for words only. Phonetic-only mode never shows emoji.")
+        desc.font = NSFont.systemFont(ofSize: 13)
+        desc.textColor = .secondaryLabelColor
+
+        let text = NSStackView(views: [emojiTitle, desc])
+        text.orientation = .vertical
+        text.alignment = .leading
+        text.spacing = 4
+
+        emojiSwitch.state = LekhoInputController.currentShowEmoji() ? .on : .off
+        emojiSwitch.target = self
+        emojiSwitch.action = #selector(emojiToggled)
+        emojiSwitch.setContentHuggingPriority(.required, for: .horizontal)
+        emojiSwitch.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        let row = NSStackView(views: [text, emojiSwitch])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 16
+
+        updateEmojiAvailability(for: LekhoInputController.currentTypingMode())
+        return CardContainer(
+            content: row,
+            insets: NSEdgeInsets(top: 14, left: 16, bottom: 14, right: 16))
+    }
+
+    /// The toggle has nothing to act on in Phonetic-only mode (no suggestion list).
+    private func updateEmojiAvailability(for mode: LekhoInputController.TypingMode) {
+        let available = mode != .phoneticOnly
+        emojiSwitch.isEnabled = available
+        emojiTitle.textColor = available ? .labelColor : .tertiaryLabelColor
+    }
+
+    @objc private func emojiToggled() {
+        UserDefaults.standard.set(emojiSwitch.state == .on, forKey: LekhoInputController.showEmojiKey)
+        NotificationCenter.default.post(name: .lekhoEmojiSettingChanged, object: nil)
+    }
+
     private func select(_ mode: LekhoInputController.TypingMode) {
         for card in cards { card.isSelected = (card.mode == mode) }
+        updateEmojiAvailability(for: mode)
         UserDefaults.standard.set(mode.rawValue, forKey: LekhoInputController.typingModeKey)
         NotificationCenter.default.post(name: .lekhoTypingModeChanged, object: nil)
     }

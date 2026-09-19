@@ -1,4 +1,4 @@
-.PHONY: build build-universal install uninstall clean
+.PHONY: build build-universal install uninstall clean test
 
 # Default: build for Apple Silicon only (release)
 build:
@@ -29,6 +29,7 @@ clean:
 	rm -rf build/
 	cd engine && cargo clean
 
-# Run Rust tests
+# Run Rust tests + the headless input-controller integration test
 test:
 	cd engine && cargo test
+	@bash scripts/test.sh

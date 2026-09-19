@@ -11,9 +11,10 @@ class LekhoInputController: IMKInputController {
         /// Dictionary, autocorrect, and emoji suggestions; the engine's top-ranked
         /// candidate is selected/committed by default. (Original behavior.)
         case smart
-        /// The full suggestion list is shown, but the literal phonetic
-        /// transliteration is selected/committed by default — unless the user has a
-        /// remembered selection for this word. Predictable output, dictionary on tap.
+        /// Phonetic-only output with the suggestion list underneath: the literal
+        /// phonetic transliteration is listed first and committed by default —
+        /// unless the user deliberately picked another candidate for this word
+        /// before (`PhoneticFirstPicks`).
         case phoneticFirst
         /// A single phonetic transliteration committed inline — no candidate popup,
         /// no autocorrect, no emoji.
@@ -26,6 +27,10 @@ class LekhoInputController: IMKInputController {
     /// Legacy bool key (pre-multi-mode). Read only for one-time migration into
     /// `typingModeKey`: true → `.phoneticOnly`, false → `.smart`.
     static let phoneticOnlyModeKey = "LekhoPhoneticOnlyMode"
+
+    /// UserDefaults bool key: show emoji candidates in the suggestion list.
+    /// Absent means on.
+    static let showEmojiKey = "LekhoShowEmoji"
 
     /// Resolve the current typing mode, migrating from the legacy bool when the
     /// new key hasn't been written yet. Default (and recommended) is `.phoneticFirst`.
@@ -41,23 +46,34 @@ class LekhoInputController: IMKInputController {
         return .phoneticFirst
     }
 
-    // MARK: - Engine state
+    static func currentShowEmoji() -> Bool {
+        return UserDefaults.standard.object(forKey: showEmojiKey) as? Bool ?? true
+    }
 
-    private var engineCtx: OpaquePointer?
-    private var engineConfig: OpaquePointer?
-    /// Shadow context running phonetic-only, used in `.phoneticFirst` to obtain the
-    /// raw transliteration of the current buffer so it can be default-selected in
-    /// the main suggestion list. Nil in other modes.
-    private var phoneticCtx: OpaquePointer?
-    private var phoneticConfig: OpaquePointer?
-    /// Raw phonetic transliteration of the current buffer (from `phoneticCtx`).
-    private var currentPhonetic: String?
-    /// Typing mode captured for the lifetime of the current engine.
-    private var typingMode: TypingMode = .smart
+    // MARK: - Session state
+
+    /// The riti engine is shared process-wide; this controller only composes
+    /// while it is the engine's owner.
+    private let engine = LekhoEngine.shared
+
     private var currentSuggestion: OpaquePointer?
-    private var selectedIndex: UInt = 0
+    /// Candidates as shown to the user. This can differ from riti's list: emoji
+    /// may be filtered out, and `.phoneticFirst` lists the literal phonetic
+    /// spelling first. `displayOrder[i]` is the riti index of `displayCandidates[i]`.
+    private var displayCandidates: [String] = []
+    private var displayOrder: [UInt] = []
+    /// The literal-spelling candidate when it was found and listed first.
+    private var phoneticCandidate: String?
+    /// What the user typed (riti's auxiliary text) for the current list.
+    private var auxiliaryText = ""
+    /// Index into `displayCandidates`.
+    private var selectedIndex = 0
+    /// The user moved the selection (arrows/Tab) since the last letter key.
+    private var userNavigated = false
     private var candidatePanel: CandidatePanel?
     private var lastKnownCursorRect: NSRect = .zero
+    /// Last client seen in an IMK callback; fallback for when `client()` is nil.
+    private weak var lastClient: (any IMKTextInput)?
 
     /// Bengali digits ০-৯ indexed by 0-9
     private static let bengaliDigits: [Character] = [
@@ -65,181 +81,42 @@ class LekhoInputController: IMKInputController {
         "\u{09EB}", "\u{09EC}", "\u{09ED}", "\u{09EE}", "\u{09EF}",
     ]
 
-    // MARK: - Lifecycle
+    /// Keys after which riti keeps the passed-in selection instead of resetting
+    /// it (riti `PhoneticMethod::get_suggestion`).
+    private static let selectionPreservingKeys: Set<Character> = [
+        ".", "?", "!", ",", ":", ";", "-", "_", ")", "}", "]", "'", "\"",
+    ]
 
-    override init!(server: IMKServer!, delegate: Any!, client inputClient: Any!) {
-        super.init(server: server, delegate: delegate, client: inputClient)
-        initializeEngine()
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(typingModeChanged),
-            name: .lekhoTypingModeChanged,
-            object: nil
-        )
-    }
+    private static let emptyRange = NSRange(location: NSNotFound, length: NSNotFound)
 
-    private func initializeEngine() {
-        typingMode = Self.currentTypingMode()
+    // MARK: - Candidate helpers
 
-        // Phonetic-only mode disables dictionary lookup, autocorrect, and emoji
-        // suggestions — riti returns a single "lonely" transliteration that the
-        // input pipeline commits inline without showing a candidate panel.
-        engineConfig = makeConfig(phoneticSuggestion: typingMode != .phoneticOnly)
-        engineCtx = riti_context_new_with_config(engineConfig)
-
-        // Phonetic-first runs a second, phonetic-only context in lockstep. Its
-        // lonely output gives us the literal transliteration of the current buffer,
-        // which we locate in the main suggestion list to select it by default.
-        if typingMode == .phoneticFirst {
-            phoneticConfig = makeConfig(phoneticSuggestion: false)
-            phoneticCtx = riti_context_new_with_config(phoneticConfig)
+    static func containsEmoji(_ text: String) -> Bool {
+        return text.unicodeScalars.contains {
+            // isEmoji alone is also true for ASCII digits, '#', and '*'.
+            $0.properties.isEmojiPresentation || ($0.properties.isEmoji && $0.value >= 0x2000)
         }
     }
 
-    /// Build a riti config pointed at the bundle data + user dir, with the given
-    /// phonetic-suggestion setting.
-    private func makeConfig(phoneticSuggestion: Bool) -> OpaquePointer? {
-        let config = riti_config_new()
-
-        // Set layout to Avro Phonetic
-        "avro_phonetic".withCString { ptr in
-            _ = riti_config_set_layout_file(config, ptr)
-        }
-
-        // Set database directory to app bundle's Resources/data
-        let dataDir = Bundle.main.resourcePath! + "/data"
-        dataDir.withCString { ptr in
-            _ = riti_config_set_database_dir(config, ptr)
-        }
-
-        // Set user directory for preferences
-        let userDir = getUserDataDir()
-        userDir.withCString { ptr in
-            _ = riti_config_set_user_dir(config, ptr)
-        }
-
-        riti_config_set_phonetic_suggestion(config, phoneticSuggestion)
-        riti_config_set_suggestion_include_english(config, true)
-        return config
-    }
-
-    /// Tear down the riti context(s)+config(s) and re-create with current settings.
-    /// Called when the typing mode changes; any in-flight session is dropped (host
-    /// marked text clears on next keystroke).
-    private func rebuildEngine() {
-        if let ctx = engineCtx, riti_context_ongoing_input_session(ctx) {
-            riti_context_finish_input_session(ctx)
-        }
-        finishPhoneticShadow()
-        freeSuggestion()
-        hideCandidates()
-        selectedIndex = 0
-
-        if let ctx = engineCtx {
-            riti_context_free(ctx)
-            engineCtx = nil
-        }
-        if let cfg = engineConfig {
-            riti_config_free(cfg)
-            engineConfig = nil
-        }
-        if let ctx = phoneticCtx {
-            riti_context_free(ctx)
-            phoneticCtx = nil
-        }
-        if let cfg = phoneticConfig {
-            riti_config_free(cfg)
-            phoneticConfig = nil
-        }
-        initializeEngine()
-    }
-
-    @objc private func typingModeChanged() {
-        rebuildEngine()
-    }
-
-    // MARK: - Phonetic shadow context (.phoneticFirst)
-
-    /// Feed a key to the shadow phonetic-only context and capture the resulting
-    /// raw transliteration of the current buffer. No-op outside `.phoneticFirst`.
-    private func feedPhoneticShadow(key: UInt16, modifier: UInt8) {
-        guard let ctx = phoneticCtx else { return }
-        let suggestion = riti_get_suggestion_for_key(ctx, key, modifier, 0)
-        currentPhonetic = lonelyText(of: suggestion)
-        if let suggestion = suggestion { riti_suggestion_free(suggestion) }
-    }
-
-    private func backspacePhoneticShadow(ctrl: Bool) {
-        guard let ctx = phoneticCtx else { return }
-        let suggestion = riti_context_backspace_event(ctx, ctrl)
-        currentPhonetic = lonelyText(of: suggestion)
-        if let suggestion = suggestion { riti_suggestion_free(suggestion) }
-    }
-
-    /// End any shadow session and clear the cached phonetic text. Idempotent, so
-    /// it's safe to call from every session-ending path.
-    private func finishPhoneticShadow() {
-        if let ctx = phoneticCtx, riti_context_ongoing_input_session(ctx) {
-            riti_context_finish_input_session(ctx)
-        }
-        currentPhonetic = nil
-    }
-
-    /// Extract the lonely-suggestion string from a phonetic-only suggestion.
-    private func lonelyText(of suggestion: OpaquePointer?) -> String? {
-        guard let suggestion = suggestion,
-              !riti_suggestion_is_empty(suggestion),
-              riti_suggestion_is_lonely(suggestion),
-              let ptr = riti_suggestion_get_lonely_suggestion(suggestion) else {
-            return nil
-        }
-        let text = String(cString: ptr)
-        riti_string_free(ptr)
-        return text
-    }
-
-    /// Decide which candidate is selected by default for the current suggestion.
-    /// Honors riti's remembered selection first; in `.phoneticFirst` falls back to
-    /// the literal phonetic candidate; otherwise index 0.
-    private func resolveSelectedIndex() {
-        guard let suggestion = currentSuggestion,
-              !riti_suggestion_is_empty(suggestion),
-              !riti_suggestion_is_lonely(suggestion) else {
-            selectedIndex = 0
-            return
-        }
-
-        let length = riti_suggestion_get_length(suggestion)
-        if length == 0 { selectedIndex = 0; return }
-
-        let prevIndex = riti_suggestion_previously_selected_index(suggestion)
-        if prevIndex >= 0 && UInt(prevIndex) < length {
-            selectedIndex = UInt(prevIndex)
-            return
-        }
-
-        if typingMode == .phoneticFirst, let phonetic = currentPhonetic {
-            for i in 0..<length {
-                guard let ptr = riti_suggestion_get_suggestion(suggestion, i) else { continue }
-                let candidate = String(cString: ptr)
-                riti_string_free(ptr)
-                if candidate == phonetic {
-                    selectedIndex = i
-                    return
-                }
+    /// riti's suggestion list smart-quotes (“ ” ‘ ’) but its phonetic-only output
+    /// doesn't; compare the two with quotes straightened.
+    private static func straightenQuotes(_ text: String) -> String {
+        guard text.contains(where: { "“”‘’".contains($0) }) else { return text }
+        return String(text.map { ch -> Character in
+            switch ch {
+            case "“", "”": return "\""
+            case "‘", "’": return "'"
+            default: return ch
             }
-        }
-
-        selectedIndex = 0
+        })
     }
 
     /// True when there's an ongoing session AND the suggestion is lonely (riti's
     /// Single variant). In phonetic-only mode every keystroke produces this; in
     /// dictionary mode it should never happen mid-session. Used to bypass
-    /// candidate-navigation handlers (Tab, arrows, 1-9) that would otherwise
-    /// call get_length on a Single variant and panic.
+    /// candidate-navigation handlers (Tab, arrows, 1-9).
     private func inLonelySession() -> Bool {
-        guard riti_context_ongoing_input_session(engineCtx),
+        guard engine.hasSession,
               let suggestion = currentSuggestion,
               !riti_suggestion_is_empty(suggestion) else {
             return false
@@ -247,36 +124,158 @@ class LekhoInputController: IMKInputController {
         return riti_suggestion_is_lonely(suggestion)
     }
 
-    private func getUserDataDir() -> String {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first!.appendingPathComponent("Lekho")
+    /// riti index of the current selection (0 when there is no list).
+    private var selectedRitiIndex: UInt {
+        return displayOrder.indices.contains(selectedIndex) ? displayOrder[selectedIndex] : 0
+    }
 
-        // Create directory if it doesn't exist
-        try? FileManager.default.createDirectory(
-            at: appSupport,
-            withIntermediateDirectories: true
+    /// Rebuild the display list from `currentSuggestion` and pick the default
+    /// selection. `preserveSelection`: the key was punctuation typed after the
+    /// user navigated, so riti's preserved index wins.
+    private func refreshCandidates(preserveSelection: Bool) {
+        displayCandidates = []
+        displayOrder = []
+        phoneticCandidate = nil
+        auxiliaryText = ""
+        selectedIndex = 0
+
+        // riti's Suggestion::len() (and the auxiliary/prev-selection accessors)
+        // panic on the Single (lonely) variant — never call them on one.
+        guard let suggestion = currentSuggestion,
+              !riti_suggestion_is_empty(suggestion),
+              !riti_suggestion_is_lonely(suggestion) else {
+            return
+        }
+
+        var items: [(index: UInt, text: String)] = []
+        let length = riti_suggestion_get_length(suggestion)
+        for i in 0..<length {
+            guard let ptr = riti_suggestion_get_suggestion(suggestion, i) else { continue }
+            items.append((i, String(cString: ptr)))
+            riti_string_free(ptr)
+        }
+
+        if !engine.showEmoji {
+            let withoutEmoji = items.filter { !Self.containsEmoji($0.text) }
+            if !withoutEmoji.isEmpty { items = withoutEmoji }
+        }
+
+        // Phonetic-first: the literal spelling goes on top, suggestions below.
+        if engine.typingMode == .phoneticFirst, let phonetic = engine.currentPhonetic {
+            let wanted = Self.straightenQuotes(phonetic)
+            if let pos = items.firstIndex(where: { Self.straightenQuotes($0.text) == wanted }) {
+                let item = items.remove(at: pos)
+                items.insert(item, at: 0)
+                phoneticCandidate = item.text
+            }
+        }
+
+        displayCandidates = items.map { $0.text }
+        displayOrder = items.map { $0.index }
+
+        if let auxPtr = riti_suggestion_get_auxiliary_text(suggestion) {
+            auxiliaryText = String(cString: auxPtr)
+            riti_string_free(auxPtr)
+        }
+
+        // riti's index is its remembered selection, or the preserved one after a
+        // punctuation key. It is 0 — never negative — when nothing is remembered.
+        let ritiSelection = riti_suggestion_previously_selected_index(suggestion)
+        let ritiDisplayIndex = displayOrder.firstIndex(of: ritiSelection) ?? 0
+
+        if engine.typingMode == .phoneticFirst {
+            if preserveSelection {
+                selectedIndex = ritiDisplayIndex
+            } else if let pick = PhoneticFirstPicks.shared.pick(forTyped: auxiliaryText),
+                      let idx = displayCandidates.firstIndex(where: { PhoneticFirstPicks.core($0) == pick }) {
+                selectedIndex = idx
+            }
+        } else {
+            selectedIndex = ritiDisplayIndex
+        }
+
+        // riti ranks a name-matched emoji above every dictionary word that isn't
+        // an exact match (`boish` → 🗺️ first), which would make Space commit an
+        // emoji. An emoji is only ever committed by an explicit pick — unless the
+        // user typed an emoticon (`:)`), where the emoji is the point.
+        let typedWord = PhoneticFirstPicks.core(auxiliaryText)
+        if !preserveSelection,
+           typedWord.first?.isLetter == true,
+           displayCandidates.indices.contains(selectedIndex),
+           Self.containsEmoji(displayCandidates[selectedIndex]),
+           let firstWord = displayCandidates.firstIndex(where: { !Self.containsEmoji($0) }) {
+            selectedIndex = firstWord
+        }
+    }
+
+    /// Drop all local session state. Does not touch the engine or the client.
+    private func resetSessionState() {
+        freeSuggestion()
+        displayCandidates = []
+        displayOrder = []
+        phoneticCandidate = nil
+        auxiliaryText = ""
+        selectedIndex = 0
+        userNavigated = false
+        hideCandidates()
+    }
+
+    private func clearMarkedText(client: any IMKTextInput) {
+        client.setMarkedText(
+            "" as NSString,
+            selectionRange: NSRange(location: 0, length: 0),
+            replacementRange: Self.emptyRange
         )
+    }
 
-        return appSupport.path
+    private func insertBengaliDigit(_ digit: Character, client: any IMKTextInput) {
+        let digitValue = Int(String(digit))!
+        let bengaliDigit = String(LekhoInputController.bengaliDigits[digitValue])
+        client.insertText(bengaliDigit as NSString, replacementRange: Self.emptyRange)
+    }
+
+    /// Move the selection by one, wrapping around.
+    private func moveSelection(forward: Bool, client: any IMKTextInput) {
+        let count = displayCandidates.count
+        guard count > 0 else { return }
+        if forward {
+            selectedIndex = (selectedIndex + 1) % count
+        } else {
+            selectedIndex = selectedIndex == 0 ? count - 1 : selectedIndex - 1
+        }
+        userNavigated = true
+        // Not updateComposition() — it kills the input session.
+        updateMarkedText(client: client)
+        candidatePanel?.selectCandidate(at: selectedIndex)
+    }
+
+    /// The client to talk to outside of a key event (mouse pick, takeover, …).
+    private func currentClient() -> (any IMKTextInput)? {
+        return self.client() ?? lastClient
+    }
+
+    // MARK: - Engine callbacks
+
+    /// Another controller is taking over the shared engine while this one still
+    /// has a word in flight (normally `deactivateServer` has already committed).
+    func sessionTakenOver() {
+        if engine.hasSession, let client = currentClient() {
+            commitTopCandidate(client: client)
+        } else {
+            resetSessionState()
+        }
+    }
+
+    /// The typing mode changed; the word being composed is discarded.
+    func engineWillRebuild() {
+        if engine.hasSession, let client = currentClient() {
+            clearMarkedText(client: client)
+        }
+        resetSessionState()
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
         freeSuggestion()
-        if let ctx = engineCtx {
-            riti_context_free(ctx)
-        }
-        if let config = engineConfig {
-            riti_config_free(config)
-        }
-        if let ctx = phoneticCtx {
-            riti_context_free(ctx)
-        }
-        if let config = phoneticConfig {
-            riti_config_free(config)
-        }
     }
 
     // MARK: - Key handling
@@ -288,12 +287,15 @@ class LekhoInputController: IMKInputController {
             return false
         }
 
+        lastClient = client
+        engine.claim(self)
+
         let modifiers = event.modifierFlags
 
         // Pass through events with Cmd or Ctrl modifiers
         if modifiers.contains(.command) || modifiers.contains(.control) {
             // If there's ongoing input, commit it first
-            if riti_context_ongoing_input_session(engineCtx) {
+            if engine.hasSession {
                 commitTopCandidate(client: client)
             }
             return false
@@ -303,7 +305,7 @@ class LekhoInputController: IMKInputController {
 
         // Handle Enter/Return - commit current selection
         if keyCode == 36 || keyCode == 76 { // Return or numpad Enter
-            if riti_context_ongoing_input_session(engineCtx) {
+            if engine.hasSession {
                 commitTopCandidate(client: client)
                 return true
             }
@@ -312,165 +314,108 @@ class LekhoInputController: IMKInputController {
 
         // Handle Escape - cancel and clear
         if keyCode == 53 {
-            if riti_context_ongoing_input_session(engineCtx) {
-                riti_context_finish_input_session(engineCtx)
-                finishPhoneticShadow()
-                freeSuggestion()
-                client.setMarkedText(
-                    "" as NSString,
-                    selectionRange: NSRange(location: 0, length: 0),
-                    replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
-                )
-                hideCandidates()
+            if engine.hasSession {
+                engine.finishSession()
+                clearMarkedText(client: client)
+                resetSessionState()
                 return true
             }
             return false
         }
 
-        // Handle Backspace
+        // Handle Backspace (Option+Backspace deletes the whole word being composed)
         if keyCode == 51 {
-            if riti_context_ongoing_input_session(engineCtx) {
-                let ctrlPressed = modifiers.contains(.control)
+            if engine.hasSession {
                 freeSuggestion()
-                currentSuggestion = riti_context_backspace_event(engineCtx, ctrlPressed)
-                backspacePhoneticShadow(ctrl: ctrlPressed)
+                currentSuggestion = engine.backspace(wholeWord: modifiers.contains(.option))
 
-                if riti_context_ongoing_input_session(engineCtx) {
-                    resolveSelectedIndex()
+                if engine.hasSession {
+                    userNavigated = false
+                    refreshCandidates(preserveSelection: false)
                     updateMarkedText(client: client)
                     showCandidates(client: client)
                 } else {
-                    finishPhoneticShadow()
-                    client.setMarkedText(
-                        "" as NSString,
-                        selectionRange: NSRange(location: 0, length: 0),
-                        replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
-                    )
-                    hideCandidates()
+                    clearMarkedText(client: client)
+                    resetSessionState()
                 }
                 return true
             }
             return false
         }
 
-        // Handle Space - commit first candidate and insert space
+        // Handle Space - commit the selected candidate, then let the space
+        // pass through to the app
         if keyCode == 49 {
-            if riti_context_ongoing_input_session(engineCtx) {
+            if engine.hasSession {
                 commitTopCandidate(client: client)
-                // Let space pass through to the app
-                return false
             }
             return false
         }
 
         // Handle Tab - navigate candidates (Shift+Tab cycles backward)
         if keyCode == 48 {
-            if riti_context_ongoing_input_session(engineCtx) {
+            if engine.hasSession {
                 if inLonelySession() {
                     // Phonetic-only: no candidates to navigate. Commit and let
                     // Tab pass through (indent/focus shift in host app).
                     commitTopCandidate(client: client)
                     return false
                 }
-                let length = currentSuggestion != nil ? riti_suggestion_get_length(currentSuggestion) : 0
-                if length > 0 {
-                    if modifiers.contains(.shift) {
-                        selectedIndex = selectedIndex == 0 ? UInt(length - 1) : selectedIndex - 1
-                    } else {
-                        selectedIndex = (selectedIndex + 1) % UInt(length)
-                    }
-                    updateMarkedText(client: client)
-                    candidatePanel?.selectCandidate(at: Int(selectedIndex))
-                }
+                moveSelection(forward: !modifiers.contains(.shift), client: client)
                 return true
             }
             return false
         }
 
         // Handle digit keys: if no active session, insert Bengali digit directly
-        if !riti_context_ongoing_input_session(engineCtx),
-           let chars = event.characters,
-           let digit = chars.first,
+        if !engine.hasSession,
+           let digit = event.characters?.first,
            digit >= "0" && digit <= "9" {
-            let digitValue = Int(String(digit))!
-            let bengaliDigit = String(LekhoInputController.bengaliDigits[digitValue])
-            client.insertText(
-                bengaliDigit as NSString,
-                replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
-            )
+            insertBengaliDigit(digit, client: client)
             return true
         }
 
         // Handle number keys 1-9 for candidate selection (when candidates are showing)
-        if riti_context_ongoing_input_session(engineCtx),
-           let chars = event.characters,
-           let digit = chars.first,
+        if engine.hasSession,
+           let digit = event.characters?.first,
            digit >= "1" && digit <= "9" {
             if inLonelySession() {
                 // Phonetic-only: no numbered candidates. Commit pre-edit, then
                 // type the digit as a Bengali numeral (matches no-session behavior).
                 commitTopCandidate(client: client)
-                let digitValue = Int(String(digit))!
-                let bengaliDigit = String(LekhoInputController.bengaliDigits[digitValue])
-                client.insertText(
-                    bengaliDigit as NSString,
-                    replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
-                )
+                insertBengaliDigit(digit, client: client)
                 return true
             }
             let index = Int(String(digit))! - 1
-            let length = currentSuggestion != nil ? riti_suggestion_get_length(currentSuggestion) : 0
-            if index < length {
+            if index < displayCandidates.count {
                 commitCandidate(at: index, client: client)
                 return true
             }
         }
 
         // Handle arrow keys for candidate navigation
-        if keyCode == 125 { // Down arrow
-            if riti_context_ongoing_input_session(engineCtx) {
+        if keyCode == 125 || keyCode == 126 { // Down / Up arrow
+            if engine.hasSession {
                 if inLonelySession() {
                     // Phonetic-only: commit and let arrow pass through (caret moves).
                     commitTopCandidate(client: client)
                     return false
                 }
-                let length = currentSuggestion != nil ? riti_suggestion_get_length(currentSuggestion) : 0
-                if length > 0 {
-                    selectedIndex = (selectedIndex + 1) % UInt(length)
-                    updateMarkedText(client: client)
-                    candidatePanel?.selectCandidate(at: Int(selectedIndex))
-                }
-                return true
-            }
-            return false
-        }
-        if keyCode == 126 { // Up arrow
-            if riti_context_ongoing_input_session(engineCtx) {
-                if inLonelySession() {
-                    commitTopCandidate(client: client)
-                    return false
-                }
-                let length = currentSuggestion != nil ? riti_suggestion_get_length(currentSuggestion) : 0
-                if length > 0 {
-                    selectedIndex = selectedIndex == 0 ? UInt(length - 1) : selectedIndex - 1
-                    updateMarkedText(client: client)
-                    candidatePanel?.selectCandidate(at: Int(selectedIndex))
-                }
+                moveSelection(forward: keyCode == 125, client: client)
                 return true
             }
             return false
         }
 
         // Handle printable characters - send to riti engine
-        guard let characters = event.characters,
-              let firstChar = characters.unicodeScalars.first else {
+        guard let firstChar = event.characters?.unicodeScalars.first else {
             return false
         }
 
         let ritiKey = avro_keycode_for_char(firstChar.value)
         if ritiKey == 0 {
             // Unknown character - commit any ongoing input and pass through
-            if riti_context_ongoing_input_session(engineCtx) {
+            if engine.hasSession {
                 commitTopCandidate(client: client)
             }
             return false
@@ -479,39 +424,37 @@ class LekhoInputController: IMKInputController {
         // Get modifier for riti
         let ritiModifier: UInt8 = modifiers.contains(.shift) ? UInt8(MODIFIER_SHIFT) : 0
 
+        // A selection the user navigated to survives a punctuation key (riti
+        // keeps the index we pass in); any other key resets it.
+        let preserveSelection = engine.hasSession && userNavigated
+            && Self.selectionPreservingKeys.contains(Character(firstChar))
+        let passedSelection = UInt8(clamping: selectedRitiIndex)
+
         // Get suggestion from engine
         freeSuggestion()
-        currentSuggestion = riti_get_suggestion_for_key(
-            engineCtx,
-            ritiKey,
-            ritiModifier,
-            UInt8(selectedIndex)
-        )
-        feedPhoneticShadow(key: ritiKey, modifier: ritiModifier)
+        currentSuggestion = engine.feed(key: ritiKey, modifier: ritiModifier, selection: passedSelection)
 
-        if riti_context_ongoing_input_session(engineCtx) {
-            resolveSelectedIndex()
+        if engine.hasSession {
+            if !preserveSelection { userNavigated = false }
+            refreshCandidates(preserveSelection: preserveSelection)
             updateMarkedText(client: client)
             showCandidates(client: client)
         } else {
             // Engine produced a "lonely" suggestion (single char, punctuation, etc.)
             if let suggestion = currentSuggestion, !riti_suggestion_is_empty(suggestion) {
                 if riti_suggestion_is_lonely(suggestion) {
-                    let textPtr = riti_suggestion_get_lonely_suggestion(suggestion)
-                    if let textPtr = textPtr {
+                    if let textPtr = riti_suggestion_get_lonely_suggestion(suggestion) {
                         let text = String(cString: textPtr)
-                        client.insertText(
-                            text as NSString,
-                            replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
-                        )
                         riti_string_free(textPtr)
+                        client.insertText(text as NSString, replacementRange: Self.emptyRange)
                     }
                 } else {
+                    refreshCandidates(preserveSelection: false)
                     commitTopCandidate(client: client)
                 }
             }
-            finishPhoneticShadow()
-            hideCandidates()
+            engine.finishSession()
+            resetSessionState()
         }
 
         return true
@@ -525,19 +468,16 @@ class LekhoInputController: IMKInputController {
             return
         }
 
-        // riti's Suggestion::len() panics on the Single (lonely) variant — must
-        // not call get_length here. get_pre_edit_text(0) handles both variants:
-        // for Full it indexes into the list, for Single it returns the lone string.
+        // get_pre_edit_text handles both variants: for Full it indexes into the
+        // list, for Single (lonely) it returns the lone string.
         let preEditIndex: UInt
         if riti_suggestion_is_lonely(suggestion) {
             preEditIndex = 0
         } else {
-            let length = riti_suggestion_get_length(suggestion)
-            if length == 0 { return }
-            preEditIndex = min(selectedIndex, length - 1)
+            if displayOrder.isEmpty { return }
+            preEditIndex = selectedRitiIndex
         }
-        let preEditPtr = riti_suggestion_get_pre_edit_text(suggestion, preEditIndex)
-        guard let preEditPtr = preEditPtr else { return }
+        guard let preEditPtr = riti_suggestion_get_pre_edit_text(suggestion, preEditIndex) else { return }
         let preEditText = String(cString: preEditPtr)
         riti_string_free(preEditPtr)
 
@@ -551,53 +491,45 @@ class LekhoInputController: IMKInputController {
         client.setMarkedText(
             attrStr,
             selectionRange: NSRange(location: preEditText.utf16.count, length: 0),
-            replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
+            replacementRange: Self.emptyRange
         )
     }
 
     private func commitTopCandidate(client: any IMKTextInput) {
-        commitCandidate(at: Int(selectedIndex), client: client)
+        commitCandidate(at: selectedIndex, client: client)
     }
 
+    /// Commit the candidate at display index `index` and end the session.
     private func commitCandidate(at index: Int, client: any IMKTextInput) {
         guard let suggestion = currentSuggestion,
               !riti_suggestion_is_empty(suggestion) else {
-            riti_context_finish_input_session(engineCtx)
-            finishPhoneticShadow()
-            freeSuggestion()
-            hideCandidates()
+            engine.finishSession()
+            resetSessionState()
             return
         }
 
         let text: String
         if riti_suggestion_is_lonely(suggestion) {
+            // Phonetic-only: every keystroke fills riti's buffer, so the session
+            // must be ended explicitly or the next key appends to a stale buffer.
             let ptr = riti_suggestion_get_lonely_suggestion(suggestion)
             text = ptr != nil ? String(cString: ptr!) : ""
             if let ptr = ptr { riti_string_free(ptr) }
-            // In phonetic-only mode, every keystroke fills riti's buffer. The
-            // original lonely path (punctuation outside a session) didn't need
-            // a clear because the buffer was empty there — but here we must
-            // explicitly end the session or the next keystroke will append to
-            // the now-stale buffer.
-            riti_context_finish_input_session(engineCtx)
+            engine.finishSession()
+        } else if displayCandidates.isEmpty {
+            text = ""
+            engine.finishSession()
         } else {
-            let length = riti_suggestion_get_length(suggestion)
-            let safeIndex = UInt(min(index, Int(length) - 1))
-            let ptr = riti_suggestion_get_suggestion(suggestion, safeIndex)
-            text = ptr != nil ? String(cString: ptr!) : ""
-            if let ptr = ptr { riti_string_free(ptr) }
-            riti_context_candidate_committed(engineCtx, safeIndex)
+            let safeIndex = min(max(index, 0), displayCandidates.count - 1)
+            text = displayCandidates[safeIndex]
+            if engine.typingMode == .phoneticFirst, let phonetic = phoneticCandidate {
+                PhoneticFirstPicks.shared.record(typed: auxiliaryText, chosen: text, phonetic: phonetic)
+            }
+            engine.commit(ritiIndex: displayOrder[safeIndex])
         }
 
-        client.insertText(
-            text as NSString,
-            replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
-        )
-
-        selectedIndex = 0
-        finishPhoneticShadow()
-        freeSuggestion()
-        hideCandidates()
+        client.insertText(text as NSString, replacementRange: Self.emptyRange)
+        resetSessionState()
     }
 
     // MARK: - Cursor position for candidate window
@@ -678,27 +610,10 @@ class LekhoInputController: IMKInputController {
     // MARK: - Candidate window
 
     private func showCandidates(client: any IMKTextInput) {
-        guard let suggestion = currentSuggestion,
-              !riti_suggestion_is_empty(suggestion),
-              !riti_suggestion_is_lonely(suggestion) else {
+        guard !displayCandidates.isEmpty else {
             hideCandidates()
             return
         }
-
-        let length = riti_suggestion_get_length(suggestion)
-        var candidates: [String] = []
-        for i in 0..<length {
-            let ptr = riti_suggestion_get_suggestion(suggestion, i)
-            if let ptr = ptr {
-                candidates.append(String(cString: ptr))
-                riti_string_free(ptr)
-            }
-        }
-
-        // Get auxiliary text (what the user typed in English)
-        let auxPtr = riti_suggestion_get_auxiliary_text(suggestion)
-        let auxText = auxPtr != nil ? String(cString: auxPtr!) : ""
-        if let auxPtr = auxPtr { riti_string_free(auxPtr) }
 
         // Get cursor rect AFTER marked text is set (so markedRange is valid)
         let cursorRect = getCursorRect(client: client)
@@ -707,19 +622,16 @@ class LekhoInputController: IMKInputController {
             candidatePanel = CandidatePanel()
             candidatePanel?.onCandidateSelected = { [weak self] index in
                 guard let self = self,
-                      let client = self.client() as (any IMKTextInput)? else { return }
+                      self.engine.isOwner(self),
+                      let client = self.currentClient() else { return }
                 self.commitCandidate(at: index, client: client)
             }
         }
 
-        // selectedIndex is resolved by resolveSelectedIndex() before this call;
-        // clamp defensively in case the list shrank.
-        if selectedIndex >= length { selectedIndex = 0 }
-
         candidatePanel?.show(
-            candidates: candidates,
-            auxiliaryText: auxText,
-            selectedIndex: Int(selectedIndex),
+            candidates: displayCandidates,
+            auxiliaryText: auxiliaryText,
+            selectedIndex: selectedIndex,
             cursorRect: cursorRect
         )
     }
@@ -739,44 +651,37 @@ class LekhoInputController: IMKInputController {
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
-        selectedIndex = 0
-        finishPhoneticShadow()
-        freeSuggestion()
+        engine.claim(self)
+        // Nothing can legitimately be in flight for a client that is only now
+        // becoming active; clear any leftovers in both engine and controller.
+        engine.finishSession()
+        resetSessionState()
     }
 
     override func deactivateServer(_ sender: Any!) {
-        if let client = sender as? (any IMKTextInput),
-           riti_context_ongoing_input_session(engineCtx) {
-            commitTopCandidate(client: client)
-        }
-        finishPhoneticShadow()
-        freeSuggestion()
-        hideCandidates()
+        commitOrReset(sender)
         super.deactivateServer(sender)
     }
 
-    override func candidates(_ sender: Any!) -> [Any]! {
-        // Lonely (Single) suggestions have no candidate list — riti's
-        // get_length panics on that variant, so guard before calling it.
-        guard let suggestion = currentSuggestion,
-              !riti_suggestion_is_empty(suggestion),
-              !riti_suggestion_is_lonely(suggestion) else {
-            return []
-        }
-
-        let length = riti_suggestion_get_length(suggestion)
-        var result: [String] = []
-        for i in 0..<length {
-            let ptr = riti_suggestion_get_suggestion(suggestion, i)
-            if let ptr = ptr {
-                result.append(String(cString: ptr))
-                riti_string_free(ptr)
-            }
-        }
-        return result
+    /// The client asks for the composition to end — e.g. the user clicked
+    /// elsewhere in the text mid-word. Without this the engine would keep the old
+    /// buffer and prepend it to whatever is typed at the new location.
+    override func commitComposition(_ sender: Any!) {
+        commitOrReset(sender)
     }
-}
 
-extension Notification.Name {
-    static let lekhoTypingModeChanged = Notification.Name("LekhoTypingModeChanged")
+    private func commitOrReset(_ sender: Any!) {
+        if engine.isOwner(self), engine.hasSession {
+            if let client = (sender as? (any IMKTextInput)) ?? currentClient() {
+                commitTopCandidate(client: client)
+                return
+            }
+            engine.finishSession()
+        }
+        resetSessionState()
+    }
+
+    override func candidates(_ sender: Any!) -> [Any]! {
+        return displayCandidates
+    }
 }

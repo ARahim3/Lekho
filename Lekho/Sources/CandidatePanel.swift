@@ -280,6 +280,8 @@ class CandidateView: NSView {
         guard clickOffset >= 0 else { return nil }
 
         let rowIndex = Int(clickOffset / rowHeight)
+        // The padding strip below the last visible row is not a (hidden) next row.
+        guard rowIndex < maxVisibleCandidates else { return nil }
         let candidateIndex = scrollOffset + rowIndex
         guard candidateIndex >= 0 && candidateIndex < candidates.count else { return nil }
         return candidateIndex
