@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ATSApplicationFontsPath</key>
+	<string>fonts</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -19,7 +21,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.7</string>
+	<string>0.2.8</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>InputMethodConnectionName</key>
@@ -38,7 +40,5 @@
 	</array>
 	<key>tsInputMethodIconFileKey</key>
 	<string>iconTemplate</string>
-	<key>ATSApplicationFontsPath</key>
-	<string>fonts</string>
 </dict>
 </plist>
