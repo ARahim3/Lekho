@@ -10,6 +10,7 @@ var server: IMKServer!
 // Build identifier — check Console.app for "Lekho" to verify which build is running
 let lekhoBuildId = "build-20260506b"
 NSLog("Lekho: starting %@", lekhoBuildId)
+SpellingDictionary.preload()
 
 // Install a minimal main menu so the welcome window honors standard Mac
 // keyboard shortcuts (Cmd+W, Cmd+Q, Cmd+C/V/X/A) when it is the key window.

@@ -167,7 +167,7 @@ enum WelcomeUI {
         }
         let row = NSStackView(views: [icon, text])
         row.spacing = 8
-        row.alignment = subtitle == nil ? .centerY : .top
+        row.alignment = .centerY
         row.translatesAutoresizingMaskIntoConstraints = false
         return row
     }
@@ -858,9 +858,9 @@ private let layoutSections: [(title: String, symbol: String, items: [(bn: String
         ("ৎ", "t``"), ("ং", "ng"), ("ঃ", ":"), ("ঁ", "^"),
     ]),
     ("Vowels", "character", [
-        ("অ", "o"), ("আ / া", "a"), ("ই / ি", "i"), ("ঈ / ী", "I"), ("উ / ু", "u"),
-        ("ঊ / ূ", "U"), ("ঋ / ৃ", "rri"), ("এ / ে", "e"), ("ঐ / ৈ", "OI"), ("ও / ো", "O"),
-        ("ঔ / ৌ", "OU"),
+        ("অ", "o"), ("আ /  া", "a"), ("ই /  ি", "i"), ("ঈ /  ী", "I"), ("উ /  ু", "u"),
+        ("ঊ /  ূ", "U"), ("ঋ /  ৃ", "rri"), ("এ /  ে", "e"), ("ঐ /  ৈ", "OI"), ("ও /  ো", "O"),
+        ("ঔ /  ৌ", "OU"),
     ]),
     ("Special", "sparkles", [
         // ZWJ (U+200D) next to the hasanta makes the shaper emit the standalone
@@ -951,20 +951,43 @@ class LayoutView: NSView {
         return content
     }
 
+    private static let bnSize: CGFloat = 34     // 2x the original 17
+    private static let keySize: CGFloat = 16.5  // 1.5x the original 11
+
+    private static func bnFont(_ text: String) -> NSFont {
+        // July has no dotted-circle glyph (U+25CC), so cards showing a bare
+        // vowel sign or mark use the system Bangla font, which draws it.
+        if text.contains("\u{25CC}") {
+            return NSFont(name: "KohinoorBangla-Medium", size: bnSize) ?? .systemFont(ofSize: bnSize, weight: .medium)
+        }
+        // Latin-only labels (e.g. "Separator") aren't Bangla characters; keep them small so they fit.
+        let isLatin = text.unicodeScalars.allSatisfy { $0.isASCII }
+        return NSFont.withBangla(.systemFont(ofSize: isLatin ? 17 : bnSize, weight: .medium))
+    }
+
+    private static let keyFont = NSFont.monospacedSystemFont(ofSize: keySize, weight: .medium)
+
+    /// One height for every card: the tallest label line plus the key line and padding.
+    private static let cardHeight: CGFloat = {
+        func height(_ text: String, _ font: NSFont) -> CGFloat {
+            let f = NSTextField(labelWithString: text)
+            f.font = font
+            return f.fittingSize.height
+        }
+        let bn = max(height("\u{0995}\u{09CD}\u{09B7}", bnFont("")), height("\u{25CC}\u{09BE}", bnFont("\u{25CC}")))
+        return ceil(bn + height("k", keyFont) + 1 + 20)
+    }()
+
     private func makeCard(_ item: (bn: String, key: String)) -> NSView {
         let card = RoundedTintView(
             cornerRadius: 8,
             fill: { .controlBackgroundColor },
             border: { .separatorColor })
         let bn = NSTextField(labelWithString: item.bn)
-        // July has no dotted-circle glyph (U+25CC), so cards showing a bare
-        // vowel sign or mark use the system Bangla font, which draws it.
-        bn.font = item.bn.contains("")
-            ? NSFont(name: "KohinoorBangla-Medium", size: 17) ?? .systemFont(ofSize: 17, weight: .medium)
-            : NSFont.withBangla(.systemFont(ofSize: 17, weight: .medium))
+        bn.font = Self.bnFont(item.bn)
         bn.alignment = .center
         let key = NSTextField(labelWithString: item.key)
-        key.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
+        key.font = Self.keyFont
         key.textColor = .secondaryLabelColor
         key.alignment = .center
         let stack = NSStackView(views: [bn, key])
@@ -974,7 +997,7 @@ class LayoutView: NSView {
         stack.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(stack)
         NSLayoutConstraint.activate([
-            card.heightAnchor.constraint(equalToConstant: 58),
+            card.heightAnchor.constraint(equalToConstant: Self.cardHeight),
             stack.centerXAnchor.constraint(equalTo: card.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: card.centerYAnchor),
         ])
