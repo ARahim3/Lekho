@@ -963,7 +963,7 @@ class GettingStartedView: NSView {
         let links = NSStackView(views: [
             makeLinkButton("github.com/ARahim3", url: "https://github.com/ARahim3"),
             dot,
-            makeLinkButton("arahim3.github.io", url: "https://arahim3.github.io"),
+            makeLinkButton("arahim.dev", url: "https://arahim.dev"),
         ])
         links.orientation = .horizontal
         links.spacing = 8
@@ -1031,13 +1031,17 @@ class GettingStartedView: NSView {
 
     @objc private func checkForUpdate() {
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
-        let url = URL(string: "https://api.github.com/repos/ARahim3/Lekho/releases/latest")!
+        // The "latest" page redirects to /releases/tag/vX.Y.Z. Unlike the JSON
+        // API it has no per-IP rate limit (the API allows 60 unauthenticated
+        // requests an hour, which a shared network exhausts quickly).
+        let url = URL(string: "https://github.com/ARahim3/Lekho/releases/latest")!
 
         var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
         request.setValue("Lekho/\(currentVersion)", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 10
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: request) { _, response, error in
             DispatchQueue.main.async {
                 if let error = error {
                     self.showUpdateAlert(
@@ -1047,12 +1051,17 @@ class GettingStartedView: NSView {
                     return
                 }
 
-                guard let data = data,
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let tagName = json["tag_name"] as? String else {
+                // After redirects, the final URL names the tag: .../releases/tag/v0.3.1
+                guard let http = response as? HTTPURLResponse,
+                      (200..<300).contains(http.statusCode),
+                      let finalURL = http.url,
+                      finalURL.pathComponents.contains("tag"),
+                      case let tagName = finalURL.lastPathComponent,
+                      tagName.dropFirst().first?.isNumber == true else {
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
                     self.showUpdateAlert(
                         title: "Check Failed",
-                        message: "Could not read release information from GitHub."
+                        message: "Could not read release information from GitHub" + (code > 0 ? " (HTTP \(code))." : ".")
                     )
                     return
                 }
@@ -1061,8 +1070,7 @@ class GettingStartedView: NSView {
                 let latestVersion = tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
 
                 if self.isVersion(latestVersion, newerThan: currentVersion) {
-                    let htmlURL = json["html_url"] as? String ?? "https://github.com/ARahim3/Lekho/releases/latest"
-                    self.showUpdateAvailableAlert(latestVersion: latestVersion, downloadURL: htmlURL)
+                    self.showUpdateAvailableAlert(latestVersion: latestVersion, downloadURL: finalURL.absoluteString)
                 } else {
                     self.showUpdateAlert(
                         title: "You\u{2019}re Up to Date",
@@ -1147,12 +1155,25 @@ class LayoutWebView: NSView {
         webView.loadHTMLString(layoutHTML(), baseURL: nil)
     }
 
+    /// Light/dark is decided here from the view's own appearance and written
+    /// onto <html>; `prefers-color-scheme` inside the web view has proven
+    /// unreliable in the IME process (it can stay "light" in a dark window).
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        webView.loadHTMLString(layoutHTML(), baseURL: nil)
+    }
+
+    private var isDark: Bool {
+        effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+
     private func layoutHTML() -> String {
         // Chosen Bangla font first; the system stack still draws Latin keys.
         let banglaFont = (LekhoAppearance.cssFontFamily().map { $0 + ", " } ?? "") + "-apple-system, sans-serif"
+        let htmlClass = isDark ? "dark" : "light"
         return """
             <!DOCTYPE html>
-            <html>
+            <html class="\(htmlClass)">
             <head>
             <meta charset="utf-8">
             <style>
@@ -1165,21 +1186,20 @@ class LayoutWebView: NSView {
                     --card-border: rgba(0, 0, 0, 0.10);
                     --row-border: rgba(0, 0, 0, 0.06);
                 }
-                @media (prefers-color-scheme: dark) {
-                    :root {
-                        --accent: #6cb4ee;
-                        --text: #f2f2f7;
-                        --text-secondary: #98989d;
-                        --card-bg: rgba(255, 255, 255, 0.05);
-                        --card-border: rgba(255, 255, 255, 0.12);
-                        --row-border: rgba(255, 255, 255, 0.07);
-                    }
+                html.dark {
+                    --accent: #6cb4ee;
+                    --text: #f2f2f7;
+                    --text-secondary: #98989d;
+                    --card-bg: rgba(255, 255, 255, 0.05);
+                    --card-border: rgba(255, 255, 255, 0.12);
+                    --row-border: rgba(255, 255, 255, 0.07);
+                    color-scheme: dark;
                 }
+                html.light { color-scheme: light; }
                 body {
                     font-family: -apple-system, "Helvetica Neue", sans-serif;
                     padding: 16px 18px;
                     background: transparent;
-                    color-scheme: light dark;
                     color: var(--text);
                 }
                 .section-title {
