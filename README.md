@@ -29,6 +29,7 @@ Lekho is built natively for Apple Silicon — no Rosetta required, future-proof 
 - **150k word dictionary** with smart suggestions and autocorrect
 - **Smart emoji suggestions** — type কান্না and get 😢, বাংলাদেশ and get 🇧🇩, right in the candidate panel
 - **Three typing modes** — *Phonetic-first* (default: your exact spelling by default with the suggestion list still one keypress away), *Smart* (suggestions, autocorrect, and emoji pick the word for you), or *Phonetic-only* (pure character-by-character control, no popup). Switch anytime in Settings.
+- **Your font, your size** — draw the suggestion popup in any installed Bangla font (July, Ekush, Noto Sans Bengali, …) at the size you like. Nothing bundled, so the app stays tiny.
 - **Native Apple Silicon** — ~2.2 MB, instant startup, zero CPU when idle
 - **Works on all Apple Silicon Macs** — MacBook Air, MacBook Pro, iMac, Mac Mini, Mac Studio (M1/M2/M3/M4/M5)
 - **Works everywhere** — built with Apple's InputMethodKit framework
@@ -83,6 +84,14 @@ Open the **Settings** tab in the Lekho window to pick how typing behaves:
 Prefer suggestions without emoji? Turn off **Show emoji in suggestions** in the same tab.
 
 Changes apply immediately — no restart needed.
+
+## Fonts
+
+<p align="center">
+  <img src="./docs/fonts.png" alt="Lekho Fonts tab — pick any installed Bangla font and size for the suggestion popup, with a live preview" width="640">
+</p>
+
+The **Fonts** tab lets you pick which installed Bangla font draws the suggestion popup, and how big. Only the popup changes — apps show the words you type in their own font. Only fonts installed on your Mac are listed; the tab links to a few good free ones (July, Ekush, Google's Noto Sans Bengali) and re-scans every time you open the list.
 
 ## Requirements
 

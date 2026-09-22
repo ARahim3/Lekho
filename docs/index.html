@@ -155,6 +155,22 @@
                         "@type": "Answer",
                         "text": "Yes. Open the Lekho app and go to Settings. Turn off 'Show emoji in suggestions' to keep the suggestion popup without emoji, or choose Phonetic-only mode for no popup at all. Phonetic-first mode types exactly what you spell and keeps the suggestions right below it."
                     }
+                },
+                {
+                    "@type": "Question",
+                    "name": "The installer says \"Install Lekho.pkg\" Not Opened. What now?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "That is macOS Gatekeeper, because Lekho is not yet signed with an Apple Developer ID. Click Done on the dialog (not Move to Trash), then open System Settings → Privacy & Security, scroll to the Security section, and click Open Anyway next to the Lekho message. Run the .pkg again and it installs. Homebrew installs skip this step."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can I change the font of the suggestion popup?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Yes. Open the Lekho app and go to the Fonts tab. It lists every Bangla-capable font installed on your Mac (July, Ekush, Noto Sans Bengali, Kohinoor Bangla and more) and lets you choose the size, with a live preview. Only the suggestion popup changes; apps show the words you type in their own font."
+                    }
                 }
             ]
         }
@@ -230,6 +246,13 @@
                 font-weight: 500;
                 z-index: 999;
                 transition: top 0.2s;
+            }
+            a:focus-visible,
+            button:focus-visible,
+            summary:focus-visible {
+                outline: 2px solid var(--vermillion);
+                outline-offset: 3px;
+                border-radius: 6px;
             }
             .skip-link:focus {
                 top: 0;
@@ -417,13 +440,12 @@
 
             /* ========== HERO ========== */
             .hero {
-                min-height: 100vh;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
                 text-align: center;
-                padding: 8rem 2rem 4rem;
+                padding: 7.5rem 2rem 3rem;
                 position: relative;
                 overflow: hidden;
             }
@@ -634,7 +656,7 @@
 
             /* ========== DEMO ========== */
             .demo-section {
-                padding: 2rem 2rem 5rem;
+                padding: 0.5rem 2rem 5rem;
                 display: flex;
                 justify-content: center;
             }
@@ -860,6 +882,37 @@
                 border: 1px solid var(--border-light);
                 color: var(--vermillion-deep);
             }
+            .step-content .sub-steps {
+                margin: 0.9rem 0 0.4rem;
+                padding: 1rem 1.2rem 1rem 2.4rem;
+                background: var(--bg-warm);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                font-size: 0.86rem;
+                color: var(--text-secondary);
+                line-height: 1.65;
+            }
+            .step-content .sub-steps li + li {
+                margin-top: 0.9rem;
+            }
+            .step-content .sub-steps strong {
+                color: var(--text-primary);
+            }
+            .shot {
+                display: block;
+                width: 100%;
+                max-width: 480px;
+                height: auto;
+                margin: 0.6rem 0 0;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+            }
+            .faq details .shot {
+                margin: 0 1.4rem 1.2rem 3.35rem;
+                width: calc(100% - 4.75rem);
+                max-width: 560px;
+            }
             .install-note {
                 margin-top: 2rem;
                 padding: 1.2rem 1.5rem;
@@ -1005,6 +1058,11 @@
             .faq summary::-webkit-details-marker {
                 display: none;
             }
+            .faq details p a {
+                color: var(--vermillion);
+                text-decoration-thickness: 1px;
+                text-underline-offset: 2px;
+            }
             .faq details p {
                 padding: 0 1.4rem 1.2rem 3.35rem;
                 font-size: 0.88rem;
@@ -1121,8 +1179,18 @@
                     display: none;
                 }
                 .hero-meta {
-                    gap: 1.25rem;
-                    flex-wrap: wrap;
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 1.25rem 2rem;
+                    justify-items: center;
+                }
+                /* The watermark letters need margins to sit in; on a phone they
+                   land under body text, so drop them. */
+                .hero-bg-char {
+                    display: none;
+                }
+                .hero-badge-more {
+                    display: none;
                 }
                 .tech-grid {
                     grid-template-columns: 1fr;
@@ -1804,7 +1872,7 @@
                 <div class="hero-content">
                     <div class="hero-badge">
                         <span class="hero-badge-dot"></span>
-                        v0.3 — Types exactly what you spell. Emoji optional.
+                        v0.3 — Types exactly what you spell.<span class="hero-badge-more"> Now in your favourite font.</span>
                     </div>
                     <h1>
                         Avro Phonetic typing is<br /><span class="highlight"
@@ -1934,12 +2002,8 @@
                             with autocorrect. Plus contextual emoji —
                             <span class="bangla" lang="bn">কান্না</span> suggests 😢,
                             <span class="bangla" lang="bn">বাংলাদেশ</span> suggests 🇧🇩.
-                            Your preferred candidates are remembered.
-                            All optional — choose <em>Phonetic-first</em> to get
-                            exactly what you spelled, with the suggestion list
-                            right below it, or <em>Phonetic-only</em> for no popup
-                            at all. Don't want emoji? One switch turns them off.
-                            Change anytime in Settings.
+                            The words you pick are remembered. Don't want emoji?
+                            One switch turns them off.
                         </p>
                     </div>
                     <div class="feature-card animate-on-scroll">
@@ -1952,12 +2016,14 @@
                         </p>
                     </div>
                     <div class="feature-card animate-on-scroll">
-                        <div class="feature-icon">🍎</div>
-                        <h3>macOS 13+ Native</h3>
+                        <div class="feature-icon">🎛️</div>
+                        <h3>Your Way of Typing</h3>
                         <p>
-                            Built with InputMethodKit — the same framework Apple
-                            uses. Works in Safari, Chrome, VS Code, TextEdit,
-                            Spotlight, everywhere.
+                            <em>Phonetic-first</em> types exactly what you spell
+                            with suggestions one key away. <em>Smart</em> lets the
+                            dictionary choose. <em>Phonetic-only</em> has no popup
+                            at all. Draw the popup in July, Ekush or any installed
+                            Bangla font, at the size you like.
                         </p>
                     </div>
                     <div class="feature-card animate-on-scroll">
@@ -2013,12 +2079,26 @@
                                     >GitHub Releases</a
                                 >, open it, and double-click
                                 <strong>Install Lekho.pkg</strong> — the
-                                installer handles everything. If macOS blocks
-                                the installer, go to <strong>System Settings →
-                                Privacy &amp; Security</strong>, scroll to the
-                                bottom, and click <strong>"Allow Anyway"</strong>
-                                next to the Lekho message.
+                                installer handles everything.
                             </p>
+                            <ol class="sub-steps">
+                                <li>
+                                    <strong>macOS may block the installer</strong> because Lekho isn't signed
+                                    with an Apple Developer ID yet. If you see <em>"Install Lekho.pkg" Not
+                                    Opened</em>, click <strong>Done</strong> — <em>not</em> "Move to Trash".
+                                    The Open Anyway option only appears after you do.
+                                    <img class="shot" src="./install_blocked_dialog.png" loading="lazy"
+                                         alt="macOS dialog: Install Lekho.pkg Not Opened — click Done">
+                                </li>
+                                <li>
+                                    Open <strong>System Settings → Privacy &amp; Security</strong>, scroll to
+                                    the <strong>Security</strong> section, and click <strong>Open Anyway</strong>
+                                    next to <em>"Install Lekho.pkg" was blocked</em>. Then double-click the
+                                    <code>.pkg</code> again and it installs normally.
+                                    <img class="shot" src="./install_allow_anyway.png" loading="lazy"
+                                         alt="Privacy &amp; Security pane — click Open Anyway next to the Lekho message">
+                                </li>
+                            </ol>
                         </div>
                     </div>
                     <div class="install-step animate-on-scroll">
@@ -2056,12 +2136,12 @@
                     </div>
                 </div>
                 <div class="install-note animate-on-scroll">
-                    <strong>v0.3:</strong> Works everywhere — Chrome, Notes, Mail, Obsidian, you name it. Found a bug?
+                    <strong>Something not working?</strong> Lekho runs in every app — Chrome, Notes, Mail, Obsidian. If it misbehaves somewhere,
                     <a
                         href="https://github.com/ARahim3/Lekho/issues"
                         target="_blank"
                         rel="noopener noreferrer"
-                        >Open an issue</a
+                        >open an issue</a
                     >
                     — every report helps.
                 </div>
@@ -2252,6 +2332,30 @@
                         <em>Phonetic-only</em> for no popup at all. <em>Phonetic-first</em> types exactly
                         what you spell and keeps the suggestions right below it.
                     </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>The installer says "Install Lekho.pkg" Not Opened. What now?</summary>
+                    <p>
+                        That's macOS Gatekeeper, because Lekho isn't signed with an Apple Developer ID yet
+                        (that costs $99/year; the code is open source if you want to check it). Click
+                        <strong>Done</strong> on the dialog — not "Move to Trash" — then open
+                        <strong>System Settings → Privacy &amp; Security</strong>, scroll to the Security
+                        section, and click <strong>Open Anyway</strong> next to the Lekho message. Run the
+                        <code>.pkg</code> again and it installs. You only do this once per download. Homebrew
+                        users skip it entirely.
+                    </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>Can I change the font of the suggestion popup?</summary>
+                    <p>
+                        Yes. Open the Lekho app and go to the <strong>Fonts</strong> tab. It lists every
+                        Bangla-capable font installed on your Mac — July, Ekush, Noto Sans Bengali, Kohinoor
+                        Bangla — and lets you pick the size, with a live preview. Only the popup changes; the
+                        apps you type into still show your words in their own font. The tab also links to
+                        free fonts you can install.
+                    </p>
+                    <img class="shot" src="./fonts.png" loading="lazy"
+                         alt="Lekho Fonts tab — choosing a Bangla font and size for the suggestion popup, with a live preview">
                 </details>
             </section>
         </main>

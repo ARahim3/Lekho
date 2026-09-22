@@ -17,7 +17,7 @@ echo ">>> Building Rust engine..."
 echo ">>> Compiling integration test..."
 mkdir -p "$OUT"
 swiftc -O -module-name LekhoTest \
-    "$SRC/InputController.swift" "$SRC/Engine.swift" "$SRC/CandidatePanel.swift" \
+    "$SRC/InputController.swift" "$SRC/Engine.swift" "$SRC/CandidatePanel.swift" "$SRC/Appearance.swift" \
     "$PROJECT_ROOT/tests/integration/main.swift" \
     -import-objc-header "$SRC/BridgeHeader.h" \
     -I "$ENGINE_DIR/include" \

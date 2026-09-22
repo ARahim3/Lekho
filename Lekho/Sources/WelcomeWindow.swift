@@ -56,6 +56,7 @@ class WelcomeTabView: NSView {
             ("start", "Getting Started", GettingStartedView()),
             ("layout", "Avro Layout", LayoutWebView()),
             ("settings", "Settings", SettingsView()),
+            ("fonts", "Fonts", FontsView()),
         ]
         for (id, label, view) in items {
             let item = NSTabViewItem(identifier: id)
@@ -441,6 +442,269 @@ class SettingsView: NSView {
         updateEmojiAvailability(for: mode)
         UserDefaults.standard.set(mode.rawValue, forKey: LekhoInputController.typingModeKey)
         NotificationCenter.default.post(name: .lekhoTypingModeChanged, object: nil)
+    }
+}
+
+// MARK: - Fonts Tab
+
+/// Suggestion popup font + size, with a live mock of the popup, and pointers to
+/// where to get more Bangla fonts. Only fonts installed on the Mac are listed;
+/// the list re-scans every time the popup opens, so a freshly installed font
+/// shows up without reopening the window.
+class FontsView: NSView, NSMenuDelegate {
+    private let fontPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let sizePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let preview = CandidateView(frame: .zero)
+    private var previewHeight: NSLayoutConstraint!
+    private var previewWidth: NSLayoutConstraint!
+    private var banglaFamilies: [String] = []
+
+    private static let sampleTyped = "amar"
+    private static let sampleCandidates = ["আমার", "আমরা", "আমাদের", "amar"]
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        setupUI()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    private func setupUI() {
+        let header = WelcomeUI.sectionHeader("Suggestion popup font")
+        let intro = NSTextField(wrappingLabelWithString:
+            "Choose which Bangla font draws the suggestion popup, and how big. Only the popup changes — the apps you type into show your words in their own font.")
+        intro.font = NSFont.systemFont(ofSize: 13)
+        intro.textColor = .secondaryLabelColor
+        intro.translatesAutoresizingMaskIntoConstraints = false
+
+        let pickerCard = makePickerCard()
+
+        let moreHeader = WelcomeUI.sectionHeader("Get more fonts")
+        let moreIntro = NSTextField(wrappingLabelWithString:
+            "Only fonts installed on this Mac appear in the list. Download a font, double-click the file to add it with Font Book, then open the list again — it re-scans every time. A few good free ones:")
+        moreIntro.font = NSFont.systemFont(ofSize: 13)
+        moreIntro.textColor = .secondaryLabelColor
+        moreIntro.translatesAutoresizingMaskIntoConstraints = false
+
+        let sourcesCard = makeSourcesCard()
+
+        let content = NSStackView(views: [header, intro, pickerCard, moreHeader, moreIntro, sourcesCard])
+        content.orientation = .vertical
+        content.alignment = .leading
+        content.spacing = 6
+        content.setCustomSpacing(14, after: intro)
+        content.setCustomSpacing(26, after: pickerCard)
+        content.setCustomSpacing(12, after: moreIntro)
+        content.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(content)
+
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: WelcomeUI.pageInset),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -WelcomeUI.pageInset),
+            content.topAnchor.constraint(equalTo: topAnchor, constant: 28),
+            intro.widthAnchor.constraint(equalTo: content.widthAnchor),
+            moreIntro.widthAnchor.constraint(equalTo: content.widthAnchor),
+            pickerCard.widthAnchor.constraint(equalTo: content.widthAnchor),
+            sourcesCard.widthAnchor.constraint(equalTo: content.widthAnchor),
+        ])
+    }
+
+    /// Font + size popups on one row, and underneath a real `CandidateView`
+    /// showing sample suggestions exactly as the popup will draw them.
+    private func makePickerCard() -> NSView {
+        let fontLabel = NSTextField(labelWithString: "Font")
+        fontLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        let sizeLabel = NSTextField(labelWithString: "Size")
+        sizeLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+
+        reloadFontFamilies()
+        fontPopup.menu?.delegate = self
+        fontPopup.target = self
+        fontPopup.action = #selector(fontFamilyChanged)
+        fontPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 220).isActive = true
+
+        let currentSize = LekhoAppearance.currentFontSize()
+        for size in LekhoAppearance.fontSizes {
+            let title = size == LekhoAppearance.defaultFontSize ? "\(Int(size)) pt (default)" : "\(Int(size)) pt"
+            sizePopup.addItem(withTitle: title)
+        }
+        sizePopup.selectItem(at: LekhoAppearance.fontSizes.firstIndex(of: currentSize)
+            ?? LekhoAppearance.fontSizes.firstIndex(of: LekhoAppearance.defaultFontSize) ?? 0)
+        sizePopup.target = self
+        sizePopup.action = #selector(fontSizeChanged)
+
+        let controls = NSStackView(views: [fontLabel, fontPopup, sizeLabel, sizePopup])
+        controls.orientation = .horizontal
+        controls.alignment = .centerY
+        controls.spacing = 8
+        controls.setCustomSpacing(20, after: fontPopup)
+
+        let previewLabel = NSTextField(labelWithString: "PREVIEW")
+        previewLabel.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
+        previewLabel.textColor = .tertiaryLabelColor
+
+        // The mock popup sizes itself like the real one; the card just reserves room.
+        preview.translatesAutoresizingMaskIntoConstraints = false
+        previewWidth = preview.widthAnchor.constraint(equalToConstant: 280)
+        previewHeight = preview.heightAnchor.constraint(equalToConstant: 200)
+        NSLayoutConstraint.activate([previewWidth, previewHeight])
+        preview.wantsLayer = true
+        preview.shadow = {
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor.black.withAlphaComponent(0.18)
+            shadow.shadowBlurRadius = 10
+            shadow.shadowOffset = NSSize(width: 0, height: -3)
+            return shadow
+        }()
+        refreshPreview()
+
+        let column = NSStackView(views: [controls, previewLabel, preview])
+        column.orientation = .vertical
+        column.alignment = .leading
+        column.spacing = 6
+        column.setCustomSpacing(14, after: controls)
+        return CardContainer(
+            content: column,
+            insets: NSEdgeInsets(top: 14, left: 16, bottom: 16, right: 16))
+    }
+
+    /// Rows of well-known free Bangla fonts / libraries with a link on the right.
+    private func makeSourcesCard() -> NSView {
+        let rows: [(String, String, String, String)] = [
+            ("July", "Free typeface from the Bangladesh Computer Council (ICT Division).",
+             "Download", "https://bongolipi.com/july/"),
+            ("Ekush", "By Codepotro, SIL Open Font License.",
+             "Download", "https://codepotro.com/font/ekush/"),
+            ("Noto Sans Bengali · Hind Siliguri · Baloo Da 2", "Google Fonts — free, open source, screen-friendly.",
+             "Browse", "https://fonts.google.com/?subset=bengali"),
+            ("More libraries", "Codepotro, Ekushey, Bongolipi and FontBD each host dozens of free Bangla fonts.",
+             "", ""),
+        ]
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 0
+        for (index, (name, note, action, url)) in rows.enumerated() {
+            let row = makeSourceRow(name: name, note: note, action: action, url: url)
+            stack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            if index < rows.count - 1 {
+                let divider = NSBox()
+                divider.boxType = .separator
+                divider.translatesAutoresizingMaskIntoConstraints = false
+                stack.addArrangedSubview(divider)
+                divider.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            }
+        }
+        return CardContainer(content: stack, insets: NSEdgeInsets(top: 4, left: 16, bottom: 4, right: 16))
+    }
+
+    private func makeSourceRow(name: String, note: String, action: String, url: String) -> NSView {
+        let nameLabel = NSTextField(labelWithString: name)
+        nameLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        let noteLabel = NSTextField(wrappingLabelWithString: note)
+        noteLabel.font = NSFont.systemFont(ofSize: 12)
+        noteLabel.textColor = .secondaryLabelColor
+
+        let text = NSStackView(views: [nameLabel, noteLabel])
+        text.orientation = .vertical
+        text.alignment = .leading
+        text.spacing = 2
+
+        let trailing: NSView
+        if action.isEmpty {
+            let links = NSStackView(views: [
+                makeLinkButton("Codepotro", url: "https://codepotro.com/fonts/"),
+                makeLinkButton("Ekushey", url: "https://ekushey.org/fonts/"),
+                makeLinkButton("Bongolipi", url: "https://bongolipi.com/"),
+                makeLinkButton("FontBD", url: "https://fontbd.com/free-fonts/"),
+            ])
+            links.orientation = .horizontal
+            links.spacing = 12
+            trailing = links
+        } else {
+            let button = NSButton(title: action, target: self, action: #selector(openLink(_:)))
+            button.bezelStyle = .rounded
+            button.controlSize = .small
+            button.identifier = NSUserInterfaceItemIdentifier(url)
+            trailing = button
+        }
+        trailing.setContentHuggingPriority(.required, for: .horizontal)
+        trailing.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 16
+        row.edgeInsets = NSEdgeInsets(top: 9, left: 0, bottom: 9, right: 0)
+        row.addView(text, in: .leading)
+        row.addView(trailing, in: .trailing)   // pinned to the right edge
+        return row
+    }
+
+    private func makeLinkButton(_ title: String, url: String) -> NSButton {
+        let button = NSButton(title: title, target: self, action: #selector(openLink(_:)))
+        button.isBordered = false
+        button.bezelStyle = .inline
+        button.attributedTitle = NSAttributedString(string: title, attributes: [
+            .foregroundColor: NSColor.controlAccentColor,
+            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+        ])
+        button.identifier = NSUserInterfaceItemIdentifier(url)
+        return button
+    }
+
+    @objc private func openLink(_ sender: NSButton) {
+        if let raw = sender.identifier?.rawValue, let url = URL(string: raw) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    // MARK: Font list
+
+    /// Rebuild the family list from what's installed right now, keeping the
+    /// current choice selected (even if its font was removed — it still shows
+    /// so the user can see what's set and switch away).
+    private func reloadFontFamilies() {
+        banglaFamilies = LekhoAppearance.installedBanglaFamilies()
+        let current = LekhoAppearance.currentFontFamily()
+        if let current, !banglaFamilies.contains(current) {
+            banglaFamilies.append(current)
+            banglaFamilies.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        }
+        fontPopup.removeAllItems()
+        fontPopup.addItem(withTitle: "System default")
+        fontPopup.menu?.addItem(.separator())
+        for family in banglaFamilies { fontPopup.addItem(withTitle: family) }
+        if let current, let index = banglaFamilies.firstIndex(of: current) {
+            fontPopup.selectItem(at: index + 2)   // after "System default" + separator
+        } else {
+            fontPopup.selectItem(at: 0)
+        }
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === fontPopup.menu { reloadFontFamilies() }
+    }
+
+    private func refreshPreview() {
+        preview.update(candidates: Self.sampleCandidates, auxiliaryText: Self.sampleTyped, selectedIndex: 0)
+        let size = preview.idealSize()
+        previewWidth.constant = size.width
+        previewHeight.constant = size.height
+    }
+
+    @objc private func fontFamilyChanged() {
+        let index = fontPopup.indexOfSelectedItem - 2
+        let family = (index >= 0 && index < banglaFamilies.count) ? banglaFamilies[index] : nil
+        LekhoAppearance.setFontFamily(family)
+        refreshPreview()
+    }
+
+    @objc private func fontSizeChanged() {
+        let index = sizePopup.indexOfSelectedItem
+        guard index >= 0 && index < LekhoAppearance.fontSizes.count else { return }
+        LekhoAppearance.setFontSize(LekhoAppearance.fontSizes[index])
+        refreshPreview()
     }
 }
 
@@ -872,9 +1136,20 @@ class LayoutWebView: NSView {
         ])
 
         webView.loadHTMLString(layoutHTML(), baseURL: nil)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(appearanceChanged),
+            name: .lekhoAppearanceChanged, object: nil)
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func appearanceChanged() {
+        webView.loadHTMLString(layoutHTML(), baseURL: nil)
     }
 
     private func layoutHTML() -> String {
+        // Chosen Bangla font first; the system stack still draws Latin keys.
+        let banglaFont = (LekhoAppearance.cssFontFamily().map { $0 + ", " } ?? "") + "-apple-system, sans-serif"
         return """
             <!DOCTYPE html>
             <html>
@@ -935,6 +1210,7 @@ class LayoutWebView: NSView {
                 }
                 tr:last-child td { border-bottom: none; }
                 .bn {
+                    font-family: \(banglaFont);
                     font-size: 15px;
                     font-weight: 500;
                     color: var(--text);

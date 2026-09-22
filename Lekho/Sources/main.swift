@@ -8,7 +8,7 @@ let kConnectionName = "com.lekho.inputmethod.Lekho_Connection"
 var server: IMKServer!
 
 // Build identifier — check Console.app for "Lekho" to verify which build is running
-let lekhoBuildId = "build-20260919a"
+let lekhoBuildId = "build-20260922a"
 NSLog("Lekho: starting %@", lekhoBuildId)
 
 // Install a minimal main menu so the welcome window honors standard Mac

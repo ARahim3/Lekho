@@ -75,6 +75,7 @@ echo ">>> Compiling Swift sources..."
 
 SWIFT_SOURCES=(
     "$SWIFT_DIR/Sources/AppDelegate.swift"
+    "$SWIFT_DIR/Sources/Appearance.swift"
     "$SWIFT_DIR/Sources/CandidatePanel.swift"
     "$SWIFT_DIR/Sources/Engine.swift"
     "$SWIFT_DIR/Sources/InputController.swift"

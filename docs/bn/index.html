@@ -158,6 +158,22 @@
                         "@type": "Answer",
                         "text": "হ্যাঁ। Lekho অ্যাপ খুলে Settings-এ যান। 'Show emoji in suggestions' বন্ধ করলে সাজেশন থাকবে, ইমোজি থাকবে না। পপ-আপ একদমই না চাইলে Phonetic-only মোড বেছে নিন। Phonetic-first মোডে আপনি যা লিখবেন ঠিক তা-ই বসবে, সাজেশন থাকবে ঠিক নিচে।"
                     }
+                },
+                {
+                    "@type": "Question",
+                    "name": "ইনস্টলার বলছে \"Install Lekho.pkg\" Not Opened — এখন কী করব?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "এটা macOS-এর Gatekeeper, কারণ লেখো এখনও Apple Developer ID দিয়ে সাইন করা নয়। ডায়ালগে Done চাপুন (Move to Trash নয়), তারপর System Settings → Privacy & Security খুলে Security অংশে লেখো-র পাশের Open Anyway চাপুন। .pkg আবার চালালেই ইনস্টল হবে। Homebrew দিয়ে ইনস্টল করলে এই ধাপ লাগে না।"
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "সাজেশন পপ-আপের ফন্ট বদলানো যায়?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "হ্যাঁ। লেখো অ্যাপের Fonts ট্যাবে আপনার ম্যাকে ইনস্টল করা সব বাংলা ফন্ট (জুলাই, একুশ, Noto Sans Bengali, Kohinoor Bangla ইত্যাদি) লিস্টে থাকে; সাইজও বেছে নেওয়া যায়, লাইভ প্রিভিউসহ। শুধু সাজেশন পপ-আপটাই বদলায়; অ্যাপে লেখা তার নিজের ফন্টেই দেখায়।"
+                    }
                 }
             ]
         }
@@ -233,6 +249,13 @@
                 font-weight: 500;
                 z-index: 999;
                 transition: top 0.2s;
+            }
+            a:focus-visible,
+            button:focus-visible,
+            summary:focus-visible {
+                outline: 2px solid var(--vermillion);
+                outline-offset: 3px;
+                border-radius: 6px;
             }
             .skip-link:focus {
                 top: 0;
@@ -419,13 +442,12 @@
 
             /* ========== HERO ========== */
             .hero {
-                min-height: 100vh;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
                 text-align: center;
-                padding: 8rem 2rem 4rem;
+                padding: 7.5rem 2rem 3rem;
                 position: relative;
                 overflow: hidden;
             }
@@ -636,7 +658,7 @@
 
             /* ========== DEMO ========== */
             .demo-section {
-                padding: 2rem 2rem 5rem;
+                padding: 0.5rem 2rem 5rem;
                 display: flex;
                 justify-content: center;
             }
@@ -862,6 +884,37 @@
                 border: 1px solid var(--border-light);
                 color: var(--vermillion-deep);
             }
+            .step-content .sub-steps {
+                margin: 0.9rem 0 0.4rem;
+                padding: 1rem 1.2rem 1rem 2.4rem;
+                background: var(--bg-warm);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                font-size: 0.86rem;
+                color: var(--text-secondary);
+                line-height: 1.65;
+            }
+            .step-content .sub-steps li + li {
+                margin-top: 0.9rem;
+            }
+            .step-content .sub-steps strong {
+                color: var(--text-primary);
+            }
+            .shot {
+                display: block;
+                width: 100%;
+                max-width: 480px;
+                height: auto;
+                margin: 0.6rem 0 0;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+            }
+            .faq details .shot {
+                margin: 0 1.4rem 1.2rem 3.35rem;
+                width: calc(100% - 4.75rem);
+                max-width: 560px;
+            }
             .install-note {
                 margin-top: 2rem;
                 padding: 1.2rem 1.5rem;
@@ -1007,6 +1060,11 @@
             .faq summary::-webkit-details-marker {
                 display: none;
             }
+            .faq details p a {
+                color: var(--vermillion);
+                text-decoration-thickness: 1px;
+                text-underline-offset: 2px;
+            }
             .faq details p {
                 padding: 0 1.4rem 1.2rem 3.35rem;
                 font-size: 0.88rem;
@@ -1123,8 +1181,18 @@
                     display: none;
                 }
                 .hero-meta {
-                    gap: 1.25rem;
-                    flex-wrap: wrap;
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 1.25rem 2rem;
+                    justify-items: center;
+                }
+                /* The watermark letters need margins to sit in; on a phone they
+                   land under body text, so drop them. */
+                .hero-bg-char {
+                    display: none;
+                }
+                .hero-badge-more {
+                    display: none;
                 }
                 .tech-grid {
                     grid-template-columns: 1fr;
@@ -1802,7 +1870,7 @@
                 <div class="hero-content">
                     <div class="hero-badge">
                         <span class="hero-badge-dot"></span>
-                        v0.3 — যা লিখবেন ঠিক তা-ই বসবে। ইমোজি আপনার ইচ্ছায়।
+                        v0.3 — যা লিখবেন ঠিক তা-ই বসবে।<span class="hero-badge-more"> এবার আপনার পছন্দের ফন্টে।</span>
                     </div>
                     <h1>
                         অভ্র ফোনেটিকে বাংলা লেখা,<br /><span class="highlight"
@@ -1926,11 +1994,8 @@
                             দেড় লাখ শব্দের অভিধান, সাজেশন, অটোকারেক্ট।
                             <span class="bangla" lang="bn">কান্না</span> লিখলে 😢 দেখাবে,
                             <span class="bangla" lang="bn">বাংলাদেশ</span> লিখলে 🇧🇩।
-                            আপনি যেটা বেশি বাছেন, সেটা মনে রাখে।
-                            Settings থেকে বেছে নিন — <em>Phonetic-first</em> মোডে আপনি
-                            যা লিখবেন ঠিক তা-ই বসবে, সাজেশন থাকবে ঠিক নিচেই; আর
-                            <em>Phonetic-only</em> মোডে সাজেশন একদম বন্ধ। ইমোজি না চাইলে
-                            এক সুইচেই বন্ধ করা যায়।
+                            আপনি যেটা বাছেন, সেটা মনে রাখে। ইমোজি না চাইলে
+                            এক সুইচেই বন্ধ।
                         </p>
                     </div>
                     <div class="feature-card animate-on-scroll">
@@ -1943,12 +2008,13 @@
                         </p>
                     </div>
                     <div class="feature-card animate-on-scroll">
-                        <div class="feature-icon">🍎</div>
-                        <h3>macOS 13+ নেটিভ</h3>
+                        <div class="feature-icon">🎛️</div>
+                        <h3>যেভাবে লিখতে চান</h3>
                         <p>
-                            Apple-র নিজস্ব InputMethodKit দিয়ে তৈরি।
-                            Safari, Chrome, VS Code, TextEdit, Spotlight —
-                            যেখানেই লিখুন, চলবে।
+                            <em>Phonetic-first</em> মোডে যা লিখবেন ঠিক তা-ই বসবে,
+                            সাজেশন এক চাপ দূরে। <em>Smart</em> মোডে অভিধান বেছে দেয়।
+                            <em>Phonetic-only</em> মোডে পপ-আপ নেই। পপ-আপ দেখুন জুলাই,
+                            একুশ বা ইনস্টল করা যেকোনো বাংলা ফন্টে, পছন্দমতো সাইজে।
                         </p>
                     </div>
                     <div class="feature-card animate-on-scroll">
@@ -2003,11 +2069,25 @@
                                 > থেকে লেটেস্ট <code>.dmg</code> ফাইলটি নামিয়ে নিন;
                                 ওপেন করে <strong>Install Lekho.pkg</strong>-এ ডাবল-ক্লিক করুন —
                                 বাকিটা ইনস্টলার সামলাবে।
-                                macOS ইনস্টলার ব্লক করলে
-                                <strong>System Settings → Privacy &amp; Security</strong>-এ
-                                যান, নিচে স্ক্রল করে লেখো-র পাশের
-                                <strong>"Allow Anyway"</strong> চাপুন।
                             </p>
+                            <ol class="sub-steps">
+                                <li>
+                                    <strong>macOS ইনস্টলার আটকে দিতে পারে</strong>, কারণ লেখো এখনও Apple
+                                    Developer ID দিয়ে সাইন করা নয়। <em>"Install Lekho.pkg" Not Opened</em>
+                                    দেখালে <strong>Done</strong> চাপুন — <em>"Move to Trash" নয়</em>।
+                                    Done না চাপলে Open Anyway অপশনটা আসবে না।
+                                    <img class="shot" src="../install_blocked_dialog.png" loading="lazy"
+                                         alt="macOS ডায়ালগ: Install Lekho.pkg Not Opened — Done চাপুন">
+                                </li>
+                                <li>
+                                    <strong>System Settings → Privacy &amp; Security</strong> খুলে
+                                    <strong>Security</strong> অংশে স্ক্রল করুন; <em>"Install Lekho.pkg" was
+                                    blocked</em> লেখার পাশে <strong>Open Anyway</strong> চাপুন। এরপর
+                                    <code>.pkg</code> ফাইলটা আবার ডাবল-ক্লিক করলেই ইনস্টল হয়ে যাবে।
+                                    <img class="shot" src="../install_allow_anyway.png" loading="lazy"
+                                         alt="Privacy &amp; Security — লেখো-র পাশে Open Anyway চাপুন">
+                                </li>
+                            </ol>
                         </div>
                     </div>
                     <div class="install-step animate-on-scroll">
@@ -2042,8 +2122,8 @@
                     </div>
                 </div>
                 <div class="install-note animate-on-scroll">
-                    <strong>v0.3:</strong> এখন সব অ্যাপেই চলে — Chrome, Notes, Mail, Obsidian, যেটাই বলুন।
-                    কোনো বাগ পেলেন?
+                    <strong>কোথাও কাজ করছে না?</strong> লেখো সব অ্যাপেই চলে — Chrome, Notes, Mail, Obsidian।
+                    কোথাও গোলমাল করলে
                     <a
                         href="https://github.com/ARahim3/Lekho/issues"
                         target="_blank"
@@ -2237,6 +2317,30 @@
                         পপ-আপ একদমই না চাইলে <em>Phonetic-only</em> মোড বেছে নিন।
                         <em>Phonetic-first</em> মোডে আপনি যা লিখবেন ঠিক তা-ই বসবে, সাজেশন থাকবে ঠিক নিচে।
                     </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>ইনস্টলার বলছে "Install Lekho.pkg" Not Opened — এখন কী করব?</summary>
+                    <p>
+                        এটা macOS-এর Gatekeeper, কারণ লেখো এখনও Apple Developer ID দিয়ে সাইন করা নয়
+                        (বছরে $৯৯ লাগে; কোডটা ওপেন সোর্স, চাইলে দেখে নিতে পারেন)। ডায়ালগে
+                        <strong>Done</strong> চাপুন — "Move to Trash" নয় — তারপর
+                        <strong>System Settings → Privacy &amp; Security</strong> খুলে Security অংশে স্ক্রল
+                        করে লেখো-র পাশের <strong>Open Anyway</strong> চাপুন। <code>.pkg</code> আবার চালালেই
+                        ইনস্টল হবে। প্রতি ডাউনলোডে একবারই করতে হয়। Homebrew দিয়ে ইনস্টল করলে এই ধাপ
+                        লাগে না।
+                    </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>সাজেশন পপ-আপের ফন্ট বদলানো যায়?</summary>
+                    <p>
+                        হ্যাঁ। লেখো অ্যাপ খুলে <strong>Fonts</strong> ট্যাবে যান। আপনার ম্যাকে ইনস্টল করা
+                        সব বাংলা ফন্ট — জুলাই, একুশ, Noto Sans Bengali, Kohinoor Bangla — ওখানে লিস্টে
+                        থাকবে; সাইজও বেছে নেওয়া যায়, সাথে সাথে প্রিভিউ দেখাবে। শুধু পপ-আপটাই বদলায়;
+                        যে অ্যাপে লিখছেন, সেখানে লেখা তার নিজের ফন্টেই দেখাবে। নতুন ফন্ট কোথায় পাবেন,
+                        সেটার লিঙ্কও ওই ট্যাবে আছে।
+                    </p>
+                    <img class="shot" src="../fonts.png" loading="lazy"
+                         alt="লেখো-র Fonts ট্যাব — সাজেশন পপ-আপের জন্য বাংলা ফন্ট ও সাইজ বাছাই, লাইভ প্রিভিউসহ">
                 </details>
             </section>
         </main>

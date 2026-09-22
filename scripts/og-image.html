@@ -1,0 +1,64 @@
+<!-- Source for docs/og-image.png (1200x630 social preview).
+     Open in a browser at exactly 1200x630 (or a headless renderer) and screenshot,
+     then save as docs/og-image.png. Uses the same Google Fonts as the site. -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,500&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Noto+Serif+Bengali:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#fdfaf5; --bg-warm:#f8f2e8; --card:#fff; --border:#e8dfd0; --ink:#2c1810; --body:#4a3728; --dim:#72645a; --red:#c0392b; --olive:#5d7a3a; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1200px; height:630px; overflow:hidden; }
+  body { background:var(--bg); font-family:"Source Sans 3", sans-serif; color:var(--ink); position:relative; }
+  .bg { position:absolute; inset:0; pointer-events:none; }
+  .bg span { position:absolute; font-family:"Noto Serif Bengali", serif; font-weight:700; color:var(--red); opacity:.07; line-height:1; }
+  .wrap { position:absolute; inset:0; padding:64px 72px; display:grid; grid-template-columns: 1.15fr 0.85fr; column-gap:48px; align-items:center; }
+  .brand { display:flex; align-items:center; gap:14px; margin-bottom:34px; }
+  .chip { width:54px; height:54px; border-radius:13px; background:var(--red); color:#fff; display:flex; align-items:center; justify-content:center; font-family:"Noto Serif Bengali", serif; font-size:30px; font-weight:700; box-shadow:0 6px 16px rgba(192,57,43,.28); }
+  .brand b { font-family:"Playfair Display", serif; font-size:32px; font-weight:700; }
+  .brand span { font-family:"Noto Serif Bengali", serif; font-size:24px; color:var(--dim); margin-left:-4px; }
+  h1 { font-family:"Playfair Display", serif; font-size:56px; white-space:nowrap; line-height:1.06; letter-spacing:-0.015em; font-weight:700; }
+  h1 em { font-style:italic; font-weight:500; color:var(--red); }
+  .sub { margin-top:20px; font-size:23px; color:var(--body); line-height:1.4; max-width:520px; }
+  .meta { margin-top:30px; display:flex; gap:10px; }
+  .meta span { font-family:"JetBrains Mono", monospace; font-size:16px; padding:8px 14px; background:var(--bg-warm); border:1px solid var(--border); border-radius:8px; color:var(--body); }
+  .win { margin-top:8px; background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:0 24px 60px rgba(44,24,16,.12), 0 2px 6px rgba(44,24,16,.05); overflow:hidden; }
+  .bar { display:flex; align-items:center; gap:8px; padding:14px 18px; background:var(--bg-warm); border-bottom:1px solid #f0e8da; }
+  .bar i { width:12px; height:12px; border-radius:50%; display:block; }
+  .bar .t { flex:1; text-align:center; font-size:14px; color:var(--dim); }
+  .body { padding:30px 34px 36px; }
+  .lbl { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin-bottom:8px; }
+  .typed { font-family:"JetBrains Mono", monospace; font-size:28px; color:var(--body); margin-bottom:26px; }
+  .out { font-family:"Noto Serif Bengali", serif; font-size:54px; font-weight:600; line-height:1.25; color:var(--ink); display:flex; align-items:center; }
+  .out i { display:inline-block; width:3px; height:52px; background:var(--red); margin-left:8px; border-radius:2px; }
+  .list { margin-top:22px; display:flex; flex-direction:column; gap:6px; }
+  .row { display:flex; align-items:center; gap:14px; padding:8px 12px; border-radius:8px; font-family:"Noto Serif Bengali", serif; font-size:22px; color:var(--body); }
+  .row.sel { background:#c0392b14; color:var(--ink); }
+  .row .n { font-family:"JetBrains Mono", monospace; font-size:14px; color:var(--dim); width:14px; }
+</style></head>
+<body>
+<div class="bg">
+  <span style="top:-8px;left:56px;font-size:96px">অ</span>
+  <span style="top:120px;right:120px;font-size:72px">আ</span>
+  <span style="bottom:36px;left:230px;font-size:80px">ক</span>
+  <span style="bottom:40px;right:60px;font-size:64px">ম</span>
+  <span style="top:40px;left:540px;font-size:56px">ব</span>
+</div>
+<div class="wrap">
+  <div>
+    <div class="brand"><div class="chip">অ</div><b>Lekho</b><span>(লেখো)</span></div>
+    <h1>Avro Phonetic typing<br>is <em>back on Mac.</em></h1>
+    <p class="sub">Type in English, get Bangla. Native on Apple Silicon, free and open source.</p>
+    <div class="meta"><span>~2.2 MB</span><span>Apple Silicon</span><span>150k words</span><span>Free</span></div>
+  </div>
+  <div class="win">
+    <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28ca42"></i><span class="t">Lekho</span></div>
+    <div class="body">
+      <div class="lbl">You type</div>
+      <div class="typed">ami banglay</div>
+      <div class="lbl">You get</div>
+      <div class="out">আমি বাংলায়<i></i></div>
+    </div>
+  </div>
+</div>
+</body></html>

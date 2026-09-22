@@ -98,9 +98,13 @@ class CandidateView: NSView {
     var onCandidateClicked: ((Int) -> Void)?
 
     private let padding: CGFloat = 6
-    private let rowHeight: CGFloat = 24
     private let auxHeight: CGFloat = 20
     private let maxVisibleCandidates = 9
+
+    /// Candidate font from Settings (family + size); rows scale with it.
+    private var candidateFont: NSFont { LekhoAppearance.candidateFont() }
+    private var rowHeight: CGFloat { ceil(candidateFont.pointSize * 1.5) }
+    private var panelWidth: CGFloat { max(280, 280 + (candidateFont.pointSize - 16) * 10) }
 
     func update(candidates: [String], auxiliaryText: String, selectedIndex: Int) {
         self.candidates = candidates
@@ -131,8 +135,7 @@ class CandidateView: NSView {
         let totalCount = candidates.count
         let visibleCount = min(totalCount - scrollOffset, maxVisibleCandidates)
         let height = CGFloat(visibleCount) * rowHeight + auxHeight + padding * 2
-        let width: CGFloat = 280
-        return NSSize(width: width, height: height)
+        return NSSize(width: panelWidth, height: height)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -151,6 +154,8 @@ class CandidateView: NSView {
         let visibleStart = scrollOffset
         let visibleEnd = min(scrollOffset + maxVisibleCandidates, candidates.count)
         let visibleCount = visibleEnd - visibleStart
+        let rowHeight = self.rowHeight
+        let candidateFont = self.candidateFont
 
         // Draw auxiliary text (what the user typed) at the top
         if !auxiliaryText.isEmpty {
@@ -209,7 +214,7 @@ class CandidateView: NSView {
                 height: rowHeight - 4
             )
             let textAttrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 16),
+                .font: candidateFont,
                 .foregroundColor: isSelected
                     ? NSColor.alternateSelectedControlTextColor
                     : NSColor.labelColor
