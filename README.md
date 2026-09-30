@@ -42,6 +42,7 @@ Lekho is built natively for Apple Silicon — no Rosetta required, future-proof 
 - **Works on all Apple Silicon Macs** — MacBook Air, MacBook Pro, iMac, Mac Mini, Mac Studio (M1/M2/M3/M4/M5)
 - **Works everywhere** — built with Apple's InputMethodKit framework
 - **Completely offline** — no internet, no data collection, no telemetry
+- **Signed and notarized** — signed with an Apple Developer ID and notarized by Apple, so it installs like any other Mac app, no security warnings
 - **Free and open source** (MPL-2.0) — no ads, no subscription
 
 ## Install
@@ -61,15 +62,7 @@ To update later: `brew upgrade --cask lekho`. To uninstall: `brew uninstall --ca
 1. Download the latest `.dmg` from [Releases](https://github.com/ARahim3/Lekho/releases/latest)
 2. Open the DMG and double-click **Install Lekho.pkg**
 
-   > **macOS may block the installer** since Lekho isn't signed with an Apple Developer ID yet. If you see *"Install Lekho.pkg" Not Opened*, follow these two steps:
-   >
-   > **a.** Click **Done** on the warning dialog (do *not* click "Move to Trash"). The "Open Anyway" option won't appear in System Settings until you do.
-   >
-   > <img src="./docs/install_blocked_dialog.png" alt="macOS install blocked dialog — click Done" width="500">
-   > 
-   > **b.** Open **System Settings → Privacy & Security**, scroll to the **Security** section, and click **Open Anyway** next to *"Install Lekho.pkg" was blocked*. Then double-click the .pkg again.
-   >
-   > <img src="./docs/install_allow_anyway.png" alt="Privacy & Security pane — click Open Anyway" width="500">
+   > Since v0.3.2, Lekho is signed with an Apple Developer ID and notarized by Apple, so the installer opens without any security warning. If you see *"Install Lekho.pkg" Not Opened*, you have an older download — grab the latest one.
 
 ### Final steps (both options)
 
@@ -124,6 +117,8 @@ make install
 # Create distributable .dmg
 bash scripts/create_dmg.sh
 ```
+
+Local builds are ad-hoc signed and work fine on your own Mac. Official releases are signed with a Developer ID and notarized; the scripts only do that when those certificates are in your keychain.
 
 ## Architecture
 

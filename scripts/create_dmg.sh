@@ -5,7 +5,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_BUNDLE="$PROJECT_ROOT/build/Lekho.app"
 PKG_DIR="$PROJECT_ROOT/build/pkg_staging"
 DMG_DIR="$PROJECT_ROOT/build/dmg_staging"
-VERSION="0.3.1"
+VERSION="0.3.2"
 PKG_OUTPUT="$PROJECT_ROOT/build/Lekho.pkg"
 DMG_OUTPUT="$PROJECT_ROOT/build/Lekho-${VERSION}.dmg"
 VOLUME_NAME="Lekho"
@@ -14,6 +14,44 @@ if [ ! -d "$APP_BUNDLE" ]; then
     echo "Error: $APP_BUNDLE not found. Run 'make build' first."
     exit 1
 fi
+
+# Release signing. With a Developer ID Installer certificate in the keychain the
+# package and DMG are signed, notarized and stapled; without one they are built
+# unsigned, as before. Notarization uses a notarytool keychain profile
+# (xcrun notarytool store-credentials "lekho-notary" ...).
+#   LEKHO_INSTALLER_IDENTITY  override the installer identity ("-" = unsigned)
+#   LEKHO_NOTARY_PROFILE      keychain profile name (default: lekho-notary)
+#   LEKHO_SKIP_NOTARIZE=1     sign only, for a quick local packaging check
+INSTALLER_IDENTITY="${LEKHO_INSTALLER_IDENTITY:-$(security find-identity -v 2>/dev/null \
+    | grep -m1 -o 'Developer ID Installer: [^"]*' || true)}"
+[ "$INSTALLER_IDENTITY" = "-" ] && INSTALLER_IDENTITY=""
+NOTARY_PROFILE="${LEKHO_NOTARY_PROFILE:-lekho-notary}"
+APP_IDENTITY="$(codesign -dvv "$APP_BUNDLE" 2>&1 \
+    | sed -n 's/^Authority=\(Developer ID Application: .*\)$/\1/p' || true)"
+
+if [ -n "$INSTALLER_IDENTITY" ] && [ -z "$APP_IDENTITY" ]; then
+    echo "Error: $APP_BUNDLE is not Developer ID signed. Run 'make build' first."
+    exit 1
+fi
+
+# Submit to Apple's notary service, wait, then staple the ticket so Gatekeeper
+# can verify offline. notarytool exits 0 even for a rejected submission, so the
+# status is checked explicitly and the log is printed on failure.
+notarize() {
+    local out id
+    echo ">>> Notarizing $(basename "$1") (usually a few minutes)..."
+    out="$(xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1)" || true
+    echo "$out"
+    if ! grep -q "status: Accepted" <<< "$out"; then
+        id="$(sed -n 's/^ *id: //p' <<< "$out" | head -n 1)"
+        if [ -n "$id" ]; then
+            xcrun notarytool log "$id" --keychain-profile "$NOTARY_PROFILE" || true
+        fi
+        echo "Error: notarization of $1 failed."
+        exit 1
+    fi
+    xcrun stapler staple "$1"
+}
 
 echo "=== Creating Installer Package ==="
 
@@ -104,7 +142,7 @@ pkgbuild \
     --nopayload \
     --scripts "$PKG_DIR/scripts" \
     --identifier "com.lekho.inputmethod.Lekho" \
-    --version "0.3.1" \
+    --version "0.3.2" \
     "$PKG_DIR/Lekho-component.pkg"
 
 # Create a distribution XML for a nicer installer UI
@@ -137,18 +175,25 @@ and log back in for the keyboard to appear.
         <pkg-ref id="com.lekho.inputmethod.Lekho"/>
     </choice>
     <pkg-ref id="com.lekho.inputmethod.Lekho"
-             version="0.3.1"
+             version="0.3.2"
              onConclusion="none">Lekho-component.pkg</pkg-ref>
 </installer-gui-script>
 DISTXML
 
 echo ">>> Building product package..."
-productbuild \
-    --distribution "$PKG_DIR/distribution.xml" \
-    --package-path "$PKG_DIR" \
-    "$PKG_OUTPUT"
+PRODUCTBUILD_FLAGS=(--distribution "$PKG_DIR/distribution.xml" --package-path "$PKG_DIR")
+if [ -n "$INSTALLER_IDENTITY" ]; then
+    PRODUCTBUILD_FLAGS+=(--sign "$INSTALLER_IDENTITY" --timestamp)
+fi
+productbuild "${PRODUCTBUILD_FLAGS[@]}" "$PKG_OUTPUT"
 
 echo ">>> Package created: $PKG_OUTPUT"
+
+# Notarize + staple the package before it goes into the DMG, so the copy users
+# run carries its own ticket.
+if [ -n "$INSTALLER_IDENTITY" ] && [ "${LEKHO_SKIP_NOTARIZE:-0}" != "1" ]; then
+    notarize "$PKG_OUTPUT"
+fi
 
 # --- Step 2: Create the DMG ---
 
@@ -166,6 +211,15 @@ hdiutil create \
     -format UDZO \
     "$DMG_OUTPUT"
 
+# Sign the DMG itself (a disk image must be signed to be stapled), then notarize it.
+if [ -n "$INSTALLER_IDENTITY" ]; then
+    echo ">>> Signing DMG ($APP_IDENTITY)..."
+    codesign --force --sign "$APP_IDENTITY" --timestamp "$DMG_OUTPUT"
+    if [ "${LEKHO_SKIP_NOTARIZE:-0}" != "1" ]; then
+        notarize "$DMG_OUTPUT"
+    fi
+fi
+
 # Clean up staging
 rm -rf "$PKG_DIR" "$DMG_DIR"
 
@@ -173,5 +227,12 @@ echo ""
 echo "=== Done ==="
 echo "DMG: $DMG_OUTPUT ($(du -h "$DMG_OUTPUT" | cut -f1))"
 echo "PKG: $PKG_OUTPUT ($(du -h "$PKG_OUTPUT" | cut -f1))"
+if [ -n "$INSTALLER_IDENTITY" ] && [ "${LEKHO_SKIP_NOTARIZE:-0}" != "1" ]; then
+    echo "Signed, notarized and stapled."
+elif [ -n "$INSTALLER_IDENTITY" ]; then
+    echo "Signed, NOT notarized (LEKHO_SKIP_NOTARIZE=1)."
+else
+    echo "Unsigned (no Developer ID Installer certificate in the keychain)."
+fi
 echo ""
 echo "Users just: open DMG → double-click 'Install Lekho.pkg' → done"

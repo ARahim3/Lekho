@@ -37,9 +37,9 @@ Small bug fixes with a way to reproduce them don't need an issue.
 
 Please check these first, they come up a lot and aren't bugs:
 
-- **"Apple could not verify Install Lekho.pkg"**: Lekho isn't signed with a paid Apple Developer
-  ID. The [install guide](README.md#install) shows the *Privacy & Security → Open Anyway* step.
-  Installing with Homebrew skips that dialog.
+- **"Apple could not verify Install Lekho.pkg"**: that's a download from v0.3.1 or earlier. Lekho
+  is signed and notarized since v0.3.2, so the [latest release](https://github.com/ARahim3/Lekho/releases/latest)
+  installs without that dialog.
 - **Lekho doesn't show up in Input Sources**: log out and back in once.
 - **Too many suggestions, or emoji you don't want**: Lekho app → **Settings**.
 

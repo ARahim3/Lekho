@@ -131,11 +131,21 @@ else
     swiftc "${SWIFT_SOURCES[@]}" "${SWIFT_FLAGS[@]}"
 fi
 
-# Step 4: Sign the app (ad-hoc)
-echo ">>> Signing app bundle..."
-codesign --force --sign - \
-    --entitlements "$SWIFT_DIR/Resources/Lekho.entitlements" \
-    "$APP_BUNDLE"
+# Step 4: Sign the app. Uses the Developer ID Application certificate when one
+# is in the keychain (hardened runtime + secure timestamp, both required for
+# notarization), otherwise ad-hoc. Override with LEKHO_SIGN_IDENTITY; "-" forces
+# ad-hoc (e.g. when offline — the timestamp needs Apple's server).
+SIGN_IDENTITY="${LEKHO_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep -m1 -o 'Developer ID Application: [^"]*' || true)}"
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+
+CODESIGN_FLAGS=(--force --sign "$SIGN_IDENTITY" --entitlements "$SWIFT_DIR/Resources/Lekho.entitlements")
+if [ "$SIGN_IDENTITY" != "-" ]; then
+    CODESIGN_FLAGS+=(--options runtime --timestamp)
+fi
+
+echo ">>> Signing app bundle ($SIGN_IDENTITY)..."
+codesign "${CODESIGN_FLAGS[@]}" "$APP_BUNDLE"
 
 echo ""
 echo "=== Build complete ==="
