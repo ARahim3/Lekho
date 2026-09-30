@@ -161,10 +161,10 @@
                 },
                 {
                     "@type": "Question",
-                    "name": "ইনস্টলার বলছে \"Install Lekho.pkg\" Not Opened — এখন কী করব?",
+                    "name": "macOS কি ইনস্টলার আটকে দেবে?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "এটা macOS-এর Gatekeeper, কারণ লেখো এখনও Apple Developer ID দিয়ে সাইন করা নয়। ডায়ালগে Done চাপুন (Move to Trash নয়), তারপর System Settings → Privacy & Security খুলে Security অংশে লেখো-র পাশের Open Anyway চাপুন। .pkg আবার চালালেই ইনস্টল হবে। Homebrew দিয়ে ইনস্টল করলে এই ধাপ লাগে না।"
+                        "text": "না। v0.3.2 থেকে লেখো Apple Developer ID দিয়ে সাইন করা এবং Apple-এর নোটারাইজড, তাই ইনস্টলার স্বাভাবিকভাবেই খুলবে। এরপরও \"Install Lekho.pkg\" Not Opened দেখালে বুঝবেন আপনার কাছে v0.3.1 বা তার আগের ডাউনলোড আছে। GitHub Releases থেকে লেটেস্ট .dmg নামিয়ে সেটাই চালান।"
                     }
                 },
                 {
@@ -2023,7 +2023,8 @@
                         <p>
                             পুরোটাই চলে আপনার ম্যাকে — ইন্টারনেট লাগে না,
                             কিছু পাঠানো হয় না, ট্র্যাকিং নেই। আপনি যা লেখেন
-                            তা আপনার ম্যাকের বাইরে যায় না, কখনো।
+                            তা আপনার ম্যাকের বাইরে যায় না, কখনো। অ্যাপটি Apple
+                            Developer ID দিয়ে সাইন করা এবং Apple-এর নোটারাইজড।
                         </p>
                     </div>
                     <div class="feature-card animate-on-scroll">
@@ -2070,24 +2071,12 @@
                                 ওপেন করে <strong>Install Lekho.pkg</strong>-এ ডাবল-ক্লিক করুন —
                                 বাকিটা ইনস্টলার সামলাবে।
                             </p>
-                            <ol class="sub-steps">
-                                <li>
-                                    <strong>macOS ইনস্টলার আটকে দিতে পারে</strong>, কারণ লেখো এখনও Apple
-                                    Developer ID দিয়ে সাইন করা নয়। <em>"Install Lekho.pkg" Not Opened</em>
-                                    দেখালে <strong>Done</strong> চাপুন — <em>"Move to Trash" নয়</em>।
-                                    Done না চাপলে Open Anyway অপশনটা আসবে না।
-                                    <img class="shot" src="../install_blocked_dialog.png" loading="lazy"
-                                         alt="macOS ডায়ালগ: Install Lekho.pkg Not Opened — Done চাপুন">
-                                </li>
-                                <li>
-                                    <strong>System Settings → Privacy &amp; Security</strong> খুলে
-                                    <strong>Security</strong> অংশে স্ক্রল করুন; <em>"Install Lekho.pkg" was
-                                    blocked</em> লেখার পাশে <strong>Open Anyway</strong> চাপুন। এরপর
-                                    <code>.pkg</code> ফাইলটা আবার ডাবল-ক্লিক করলেই ইনস্টল হয়ে যাবে।
-                                    <img class="shot" src="../install_allow_anyway.png" loading="lazy"
-                                         alt="Privacy &amp; Security — লেখো-র পাশে Open Anyway চাপুন">
-                                </li>
-                            </ol>
+                            <p>
+                                লেখো এখন <strong>Apple Developer ID দিয়ে সাইন করা এবং Apple-এর
+                                নোটারাইজড</strong>, তাই ইনস্টলার অন্য যেকোনো Mac অ্যাপের মতোই খুলবে —
+                                কোনো সিকিউরিটি ওয়ার্নিং আসবে না, System Settings-এ গিয়ে কিছু Allow
+                                করতেও হবে না।
+                            </p>
                         </div>
                     </div>
                     <div class="install-step animate-on-scroll">
@@ -2319,15 +2308,14 @@
                     </p>
                 </details>
                 <details class="animate-on-scroll">
-                    <summary>ইনস্টলার বলছে "Install Lekho.pkg" Not Opened — এখন কী করব?</summary>
+                    <summary>macOS কি ইনস্টলার আটকে দেবে?</summary>
                     <p>
-                        এটা macOS-এর Gatekeeper, কারণ লেখো এখনও Apple Developer ID দিয়ে সাইন করা নয়
-                        (বছরে $৯৯ লাগে; কোডটা ওপেন সোর্স, চাইলে দেখে নিতে পারেন)। ডায়ালগে
-                        <strong>Done</strong> চাপুন — "Move to Trash" নয় — তারপর
-                        <strong>System Settings → Privacy &amp; Security</strong> খুলে Security অংশে স্ক্রল
-                        করে লেখো-র পাশের <strong>Open Anyway</strong> চাপুন। <code>.pkg</code> আবার চালালেই
-                        ইনস্টল হবে। প্রতি ডাউনলোডে একবারই করতে হয়। Homebrew দিয়ে ইনস্টল করলে এই ধাপ
-                        লাগে না।
+                        না। v0.3.2 থেকে লেখো Apple Developer ID দিয়ে সাইন করা এবং Apple-এর নোটারাইজড,
+                        তাই ইনস্টলার স্বাভাবিকভাবেই খুলবে। এরপরও
+                        <em>"Install Lekho.pkg" Not Opened</em> দেখালে বুঝবেন আপনার কাছে v0.3.1 বা তার
+                        আগের ডাউনলোড আছে —
+                        <a href="https://github.com/ARahim3/Lekho/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a>
+                        থেকে লেটেস্ট <code>.dmg</code> নামিয়ে সেটাই চালান।
                     </p>
                 </details>
                 <details class="animate-on-scroll">

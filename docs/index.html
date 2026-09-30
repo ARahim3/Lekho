@@ -158,10 +158,10 @@
                 },
                 {
                     "@type": "Question",
-                    "name": "The installer says \"Install Lekho.pkg\" Not Opened. What now?",
+                    "name": "Will macOS block the installer?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "That is macOS Gatekeeper, because Lekho is not yet signed with an Apple Developer ID. Click Done on the dialog (not Move to Trash), then open System Settings → Privacy & Security, scroll to the Security section, and click Open Anyway next to the Lekho message. Run the .pkg again and it installs. Homebrew installs skip this step."
+                        "text": "No. Since v0.3.2, Lekho is signed with an Apple Developer ID and notarized by Apple, so the installer opens normally. If you still see \"Install Lekho.pkg\" Not Opened, you have a download from v0.3.1 or earlier. Get the latest .dmg from GitHub Releases and run that instead."
                     }
                 },
                 {
@@ -2032,7 +2032,8 @@
                         <p>
                             Everything runs locally on your Mac. No internet
                             connection needed, no telemetry, no keystrokes ever
-                            leave your machine.
+                            leave your machine. Signed with an Apple Developer ID
+                            and notarized by Apple.
                         </p>
                     </div>
                     <div class="feature-card animate-on-scroll">
@@ -2081,24 +2082,11 @@
                                 <strong>Install Lekho.pkg</strong> — the
                                 installer handles everything.
                             </p>
-                            <ol class="sub-steps">
-                                <li>
-                                    <strong>macOS may block the installer</strong> because Lekho isn't signed
-                                    with an Apple Developer ID yet. If you see <em>"Install Lekho.pkg" Not
-                                    Opened</em>, click <strong>Done</strong> — <em>not</em> "Move to Trash".
-                                    The Open Anyway option only appears after you do.
-                                    <img class="shot" src="./install_blocked_dialog.png" loading="lazy"
-                                         alt="macOS dialog: Install Lekho.pkg Not Opened — click Done">
-                                </li>
-                                <li>
-                                    Open <strong>System Settings → Privacy &amp; Security</strong>, scroll to
-                                    the <strong>Security</strong> section, and click <strong>Open Anyway</strong>
-                                    next to <em>"Install Lekho.pkg" was blocked</em>. Then double-click the
-                                    <code>.pkg</code> again and it installs normally.
-                                    <img class="shot" src="./install_allow_anyway.png" loading="lazy"
-                                         alt="Privacy &amp; Security pane — click Open Anyway next to the Lekho message">
-                                </li>
-                            </ol>
+                            <p>
+                                Lekho is <strong>signed with an Apple Developer ID and notarized by
+                                Apple</strong>, so the installer opens like any other Mac app — no
+                                security warning, nothing to allow in System Settings.
+                            </p>
                         </div>
                     </div>
                     <div class="install-step animate-on-scroll">
@@ -2334,15 +2322,14 @@
                     </p>
                 </details>
                 <details class="animate-on-scroll">
-                    <summary>The installer says "Install Lekho.pkg" Not Opened. What now?</summary>
+                    <summary>Will macOS block the installer?</summary>
                     <p>
-                        That's macOS Gatekeeper, because Lekho isn't signed with an Apple Developer ID yet
-                        (that costs $99/year; the code is open source if you want to check it). Click
-                        <strong>Done</strong> on the dialog — not "Move to Trash" — then open
-                        <strong>System Settings → Privacy &amp; Security</strong>, scroll to the Security
-                        section, and click <strong>Open Anyway</strong> next to the Lekho message. Run the
-                        <code>.pkg</code> again and it installs. You only do this once per download. Homebrew
-                        users skip it entirely.
+                        No. Since v0.3.2, Lekho is signed with an Apple Developer ID and notarized by
+                        Apple, so the installer opens normally. If you still see
+                        <em>"Install Lekho.pkg" Not Opened</em>, you have a download from v0.3.1 or
+                        earlier — get the latest <code>.dmg</code> from
+                        <a href="https://github.com/ARahim3/Lekho/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a>
+                        and run that instead.
                     </p>
                 </details>
                 <details class="animate-on-scroll">
