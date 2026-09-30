@@ -47,7 +47,16 @@ Lekho is built natively for Apple Silicon — no Rosetta required, future-proof 
 
 ## Install
 
-### Option A — Homebrew (recommended if you have it)
+### Option A — Download the DMG (recommended)
+
+1. Download the latest `.dmg` from [Releases](https://github.com/ARahim3/Lekho/releases/latest)
+2. Open the DMG and double-click **Install Lekho.pkg**
+
+   > Since v0.3.2, Lekho is signed with an Apple Developer ID and notarized by Apple, so the installer opens without any security warning. If you see *"Install Lekho.pkg" Not Opened*, you have an older download — grab the latest one.
+
+To update later, download the new DMG and run the installer again. No log out needed.
+
+### Option B — Homebrew
 
 ```sh
 brew install --cask arahim3/lekho/lekho
@@ -57,12 +66,7 @@ That single command auto-taps and installs Lekho. Then jump to **step 3** below 
 
 To update later: `brew upgrade --cask lekho`. To uninstall: `brew uninstall --cask lekho`.
 
-### Option B — Download the DMG
-
-1. Download the latest `.dmg` from [Releases](https://github.com/ARahim3/Lekho/releases/latest)
-2. Open the DMG and double-click **Install Lekho.pkg**
-
-   > Since v0.3.2, Lekho is signed with an Apple Developer ID and notarized by Apple, so the installer opens without any security warning. If you see *"Install Lekho.pkg" Not Opened*, you have an older download — grab the latest one.
+> **After `brew upgrade`, Lekho may disappear from the input menu.** Homebrew removes the old app a few seconds before it installs the new one, and macOS takes Lekho off the menu in the meantime. To bring it back, open **System Settings → Keyboard → Input Sources → Edit**, remove Lekho with **−**, and add it again with **+**. Your settings and learned words are kept. Updating with the DMG installer doesn't cause this.
 
 ### Final steps (both options)
 

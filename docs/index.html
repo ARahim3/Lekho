@@ -166,6 +166,14 @@
                 },
                 {
                     "@type": "Question",
+                    "name": "Lekho disappeared from the input menu after an update. What now?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "This can happen after 'brew upgrade': Homebrew removes the old app a few seconds before it installs the new one, and macOS takes Lekho off the menu in the meantime. Open System Settings → Keyboard → Input Sources → Edit, remove Lekho with −, and add it again with +. Your settings and learned words are kept. Updating with the DMG installer doesn't cause this."
+                    }
+                },
+                {
+                    "@type": "Question",
                     "name": "Can I change the font of the suggestion popup?",
                     "acceptedAnswer": {
                         "@type": "Answer",
@@ -2067,12 +2075,7 @@
                         <div class="step-content">
                             <h3>Install</h3>
                             <p>
-                                <strong>Have Homebrew?</strong> One command:
-                                <br>
-                                <code style="display:inline-block; margin-top:0.4rem">brew install --cask arahim3/lekho/lekho</code>
-                            </p>
-                            <p>
-                                Otherwise, grab the latest <code>.dmg</code> from
+                                Grab the latest <code>.dmg</code> from
                                 <a
                                     href="https://github.com/ARahim3/Lekho/releases/latest"
                                     target="_blank"
@@ -2086,6 +2089,11 @@
                                 Lekho is <strong>signed with an Apple Developer ID and notarized by
                                 Apple</strong>, so the installer opens like any other Mac app — no
                                 security warning, nothing to allow in System Settings.
+                            </p>
+                            <p>
+                                <strong>Prefer Homebrew?</strong> One command:
+                                <br>
+                                <code style="display:inline-block; margin-top:0.4rem">brew install --cask arahim3/lekho/lekho</code>
                             </p>
                         </div>
                     </div>
@@ -2330,6 +2338,16 @@
                         earlier — get the latest <code>.dmg</code> from
                         <a href="https://github.com/ARahim3/Lekho/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a>
                         and run that instead.
+                    </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>Lekho disappeared from the input menu after an update. What now?</summary>
+                    <p>
+                        This can happen after <code>brew upgrade</code>: Homebrew removes the old app a few
+                        seconds before it installs the new one, and macOS takes Lekho off the menu in the
+                        meantime. Open <strong>System Settings → Keyboard → Input Sources → Edit</strong>,
+                        remove Lekho with <strong>−</strong>, and add it again with <strong>+</strong>. Your
+                        settings and learned words are kept. Updating with the DMG installer doesn't cause this.
                     </p>
                 </details>
                 <details class="animate-on-scroll">

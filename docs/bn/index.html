@@ -169,6 +169,14 @@
                 },
                 {
                     "@type": "Question",
+                    "name": "আপডেটের পর ইনপুট মেনু থেকে লেখো হারিয়ে গেছে — এখন কী করব?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "'brew upgrade'-এর পর এমনটা হতে পারে: Homebrew নতুন ভার্সন বসানোর কয়েক সেকেন্ড আগে পুরোনো অ্যাপটা মুছে ফেলে, আর সেই ফাঁকে macOS লেখো-কে মেনু থেকে সরিয়ে দেয়। System Settings → Keyboard → Input Sources → Edit খুলে − চেপে লেখো সরান, তারপর + চেপে আবার যোগ করুন। আপনার সেটিংস আর শেখা শব্দগুলো যেমন ছিল তেমনই থাকবে। DMG ইনস্টলার দিয়ে আপডেট করলে এমনটা হয় না।"
+                    }
+                },
+                {
+                    "@type": "Question",
                     "name": "সাজেশন পপ-আপের ফন্ট বদলানো যায়?",
                     "acceptedAnswer": {
                         "@type": "Answer",
@@ -2056,12 +2064,6 @@
                         <div class="step-content">
                             <h3>ইনস্টল করুন</h3>
                             <p>
-                                <strong>Homebrew আছে?</strong> একটাই কমান্ড:
-                                <br>
-                                <code style="display:inline-block; margin-top:0.4rem">brew install --cask arahim3/lekho/lekho</code>
-                            </p>
-                            <p>
-                                অথবা
                                 <a
                                     href="https://github.com/ARahim3/Lekho/releases/latest"
                                     target="_blank"
@@ -2076,6 +2078,11 @@
                                 নোটারাইজড</strong>, তাই ইনস্টলার অন্য যেকোনো Mac অ্যাপের মতোই খুলবে —
                                 কোনো সিকিউরিটি ওয়ার্নিং আসবে না, System Settings-এ গিয়ে কিছু Allow
                                 করতেও হবে না।
+                            </p>
+                            <p>
+                                <strong>Homebrew ব্যবহার করেন?</strong> একটাই কমান্ড:
+                                <br>
+                                <code style="display:inline-block; margin-top:0.4rem">brew install --cask arahim3/lekho/lekho</code>
                             </p>
                         </div>
                     </div>
@@ -2316,6 +2323,17 @@
                         আগের ডাউনলোড আছে —
                         <a href="https://github.com/ARahim3/Lekho/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a>
                         থেকে লেটেস্ট <code>.dmg</code> নামিয়ে সেটাই চালান।
+                    </p>
+                </details>
+                <details class="animate-on-scroll">
+                    <summary>আপডেটের পর ইনপুট মেনু থেকে লেখো হারিয়ে গেছে — এখন কী করব?</summary>
+                    <p>
+                        <code>brew upgrade</code>-এর পর এমনটা হতে পারে: Homebrew নতুন ভার্সন বসানোর কয়েক
+                        সেকেন্ড আগে পুরোনো অ্যাপটা মুছে ফেলে, আর সেই ফাঁকে macOS লেখো-কে মেনু থেকে সরিয়ে
+                        দেয়। <strong>System Settings → Keyboard → Input Sources → Edit</strong> খুলে
+                        <strong>−</strong> চেপে লেখো সরান, তারপর <strong>+</strong> চেপে আবার যোগ করুন।
+                        আপনার সেটিংস আর শেখা শব্দগুলো যেমন ছিল তেমনই থাকবে। DMG ইনস্টলার দিয়ে আপডেট করলে
+                        এমনটা হয় না।
                     </p>
                 </details>
                 <details class="animate-on-scroll">
