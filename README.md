@@ -4,6 +4,14 @@
   <img src="./docs/preview.png" alt="Lekho Keyboard Banner" width="100%">
 </div>
 
+<p align="center">
+  <a href="https://github.com/ARahim3/Lekho/releases/latest"><img src="https://img.shields.io/github/v/release/ARahim3/Lekho?label=release" alt="Latest release"></a>
+  <a href="https://github.com/ARahim3/Lekho/releases"><img src="https://img.shields.io/github/downloads/ARahim3/Lekho/total?label=downloads" alt="Total downloads"></a>
+  <a href="https://github.com/ARahim3/Lekho/stargazers"><img src="https://img.shields.io/github/stars/ARahim3/Lekho?style=flat&label=stars" alt="GitHub stars"></a>
+  <img src="https://img.shields.io/badge/macOS%2013%2B-Apple%20Silicon-black?logo=apple" alt="macOS 13 or later, Apple Silicon">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MPL--2.0-blue" alt="License: MPL-2.0"></a>
+</p>
+
 **The only Avro Phonetic keyboard built natively for Apple Silicon Macs.**
 
 Lekho brings Avro Phonetic-style Bangla (Bengali) typing to Apple Silicon Macs natively (M1, M2, M3, M4, M5) — no Rosetta required. If you used Avro Keyboard on Windows, iAvro on macOS, or OpenBangla Keyboard on Linux, Lekho is your native Apple Silicon alternative.
