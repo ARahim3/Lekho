@@ -49,7 +49,7 @@ Lekho is built natively for Apple Silicon — no Rosetta required, future-proof 
 
 ### Option A — Download the DMG (recommended)
 
-1. Download the latest `.dmg` from [Releases](https://github.com/ARahim3/Lekho/releases/latest)
+1. Download the latest `.dmg` from [Releases](https://github.com/ARahim3/Lekho/releases/latest) (on an Intel Mac or macOS 11–12, take the `-Universal.dmg`; see [Requirements](#requirements))
 2. Open the DMG and double-click **Install Lekho.pkg**
 
    > Since v0.3.2, Lekho is signed with an Apple Developer ID and notarized by Apple, so the installer opens without any security warning. If you see *"Install Lekho.pkg" Not Opened*, you have an older download — grab the latest one.
@@ -103,6 +103,8 @@ The **Fonts** tab lets you pick which installed Bangla font draws the suggestion
 - macOS 13 (Ventura) or later
 - Apple Silicon Mac (M1/M2/M3/M4/M5)
 
+**Intel Mac, or macOS 11–12?** Each release also has a Universal DMG (`Lekho-X.Y.Z-Universal.dmg`) that runs on Intel Macs and on macOS 11 (Big Sur) or later. It's newer and less tested than the Apple Silicon build, so please [open an issue](https://github.com/ARahim3/Lekho/issues) if anything misbehaves. Homebrew installs the Apple Silicon build only.
+
 ## Build from Source
 
 Prerequisites: Rust toolchain, Xcode (for Swift and InputMethodKit).
@@ -121,6 +123,8 @@ make install
 # Create distributable .dmg
 bash scripts/create_dmg.sh
 ```
+
+For the Universal build (Intel + Apple Silicon, macOS 11+), add `rustup target add x86_64-apple-darwin` and use `make build-universal`; it needs the full Xcode app, not just the Command Line Tools. `create_dmg.sh` then names the result `Lekho-X.Y.Z-Universal.dmg`.
 
 Local builds are ad-hoc signed and work fine on your own Mac. Official releases are signed with a Developer ID and notarized; the scripts only do that when those certificates are in your keychain.
 
