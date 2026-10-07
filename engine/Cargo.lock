@@ -308,8 +308,6 @@ checksum = "537dd038a89878be9b64dd4bd1b260315c1bb94f4d784956b81e27a088d9a09e"
 [[package]]
 name = "upodesh"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82a6de1534ddab716fee7781854efb5445b755f252e871f515b0696f7b65ad41"
 dependencies = [
  "fst",
  "once_cell",

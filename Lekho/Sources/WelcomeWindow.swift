@@ -764,9 +764,13 @@ class GettingStartedView: NSView {
         page.addArrangedSubview(setupHeader)
         page.setCustomSpacing(8, after: setupHeader)
 
+        // Before macOS 13 the Settings app was called System Preferences.
+        let settingsApp = ProcessInfo.processInfo.isOperatingSystemAtLeast(
+            OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
+            ? "System Settings" : "System Preferences"
         let steps: [(Int, String, String?)] = [
             (1, "Log out and log back in", "Only if you just installed Lekho for the first time."),
-            (2, "Open System Settings \u{2192} Keyboard \u{2192} Input Sources", nil),
+            (2, "Open \(settingsApp) \u{2192} Keyboard \u{2192} Input Sources", nil),
             (3, "Click +, search \u{201C}Lekho\u{201D}, select it, and add it", nil),
             (4, "Switch with the Globe key or Ctrl+Space", nil),
         ]
@@ -790,7 +794,10 @@ class GettingStartedView: NSView {
         let shortcuts: [(String, String)] = [
             ("ami \u{2192} \u{0986}\u{09AE}\u{09BF}", "Type in English, phonetically"),
             ("Space", "Commit the highlighted suggestion"),
+            ("Return", "Pick the highlighted suggestion, followed by a space"),
             ("1\u{2013}9", "Pick a specific candidate from the list"),
+            ("Ctrl + .", "Type a plain full stop (.) instead of \u{09A6}\u{09BE}\u{0981}\u{09A1}\u{09BC}\u{09BF} (\u{0964})"),
+            ("3.14 \u{2192} \u{09E9}.\u{09E7}\u{09EA}", "A dot between digits stays a dot (dates, decimals)"),
             ("\u{2191} \u{2193}", "Move through the candidate list"),
             ("Backspace", "Delete the last character"),
             ("Esc", "Cancel the current word"),

@@ -8,7 +8,7 @@ let kConnectionName = "com.lekho.inputmethod.Lekho_Connection"
 var server: IMKServer!
 
 // Build identifier — check Console.app for "Lekho" to verify which build is running
-let lekhoBuildId = "build-20260930"
+let lekhoBuildId = "build-20261007"
 NSLog("Lekho: starting %@", lekhoBuildId)
 
 // Install a minimal main menu so the welcome window honors standard Mac
@@ -60,14 +60,6 @@ func installMainMenu() {
 }
 
 installMainMenu()
-
-// Register menu bar icon as template BEFORE IMKServer loads it —
-// PDF template icon: macOS auto-inverts for dark menu bars + Globe key overlay
-if let iconPath = Bundle.main.path(forResource: "iconTemplate", ofType: "pdf"),
-   let icon = NSImage(contentsOfFile: iconPath) {
-    icon.isTemplate = true
-    icon.setName("iconTemplate")
-}
 
 autoreleasepool {
     server = IMKServer(name: kConnectionName,

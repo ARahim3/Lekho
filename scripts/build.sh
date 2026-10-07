@@ -12,9 +12,25 @@ APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 BUILD_TYPE="${1:-release}"
 BUILD_UNIVERSAL="${2:-false}"
 
+# The Apple Silicon build needs macOS 13. The universal build is the extra
+# download for Intel and older Macs, so it goes back to macOS 11. Its Intel half
+# only links with the full Xcode toolchain: the Command Line Tools ship Swift's
+# back-deployment libraries without an x86_64 slice.
+MIN_MACOS="13.0"
+if [ "$BUILD_UNIVERSAL" = "true" ]; then
+    MIN_MACOS="11.0"
+    if [ -z "${DEVELOPER_DIR:-}" ]; then
+        if [ ! -d /Applications/Xcode.app ]; then
+            echo "Error: the universal build needs Xcode.app (the Command Line Tools can't link it)."
+            exit 1
+        fi
+        export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+    fi
+fi
+
 echo "=== Lekho Build ==="
 echo "Build type: $BUILD_TYPE"
-echo "Universal binary: $BUILD_UNIVERSAL"
+echo "Universal binary: $BUILD_UNIVERSAL (macOS $MIN_MACOS+)"
 echo ""
 
 # Ensure cargo is available
@@ -57,10 +73,14 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
-# Copy Info.plist
+# Copy Info.plist, stating the same minimum macOS as the binary
 cp "$SWIFT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $MIN_MACOS" "$APP_BUNDLE/Contents/Info.plist"
 
-# Copy icons (PDF template icon for menu bar — macOS auto-inverts for dark mode + Globe overlay)
+# Copy icons (MenuIcon.pdf: full-color input-menu icon, see generate_menu_icon.swift).
+# The old iconTemplate.pdf still ships: macOS keeps an updated input method's old
+# icon until the user logs out, so that path must not vanish in the meantime.
+cp "$SWIFT_DIR/Resources/MenuIcon.pdf" "$APP_BUNDLE/Contents/Resources/MenuIcon.pdf"
 cp "$SWIFT_DIR/Resources/iconTemplate.pdf" "$APP_BUNDLE/Contents/Resources/iconTemplate.pdf"
 cp "$SWIFT_DIR/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
@@ -95,7 +115,7 @@ SWIFT_FLAGS=(
     -lavrobangla_engine
     -framework Cocoa
     -framework InputMethodKit
-    -target arm64-apple-macos13.0
+    -target "arm64-apple-macos$MIN_MACOS"
     -o "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 )
 
@@ -103,7 +123,7 @@ if [ "$BUILD_UNIVERSAL" = "true" ]; then
     echo ">>> Compiling for Apple Silicon..."
     swiftc "${SWIFT_SOURCES[@]}" "${SWIFT_FLAGS[@]}" \
         -L "$(dirname "$AARCH64_LIB")" \
-        -target arm64-apple-macos13.0 \
+        -target "arm64-apple-macos$MIN_MACOS" \
         -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_arm64"
 
     echo ">>> Compiling for Intel..."
@@ -116,7 +136,7 @@ if [ "$BUILD_UNIVERSAL" = "true" ]; then
         -lavrobangla_engine \
         -framework Cocoa \
         -framework InputMethodKit \
-        -target x86_64-apple-macos13.0 \
+        -target "x86_64-apple-macos$MIN_MACOS" \
         -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_x86_64"
 
     echo ">>> Creating universal Swift binary..."

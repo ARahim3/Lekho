@@ -23,6 +23,10 @@ final class LekhoEngine {
     /// context. Only populated in `.phoneticFirst`.
     private(set) var currentPhonetic: String?
 
+    /// What has been typed into riti's buffer this session (riti only exposes it
+    /// for a full suggestion list, never for a lonely one).
+    private(set) var typedText = ""
+
     private var mainCtx: OpaquePointer?
     private var mainConfig: OpaquePointer?
     /// Shadow phonetic-only context (`.phoneticFirst` only), fed the same keys in
@@ -62,11 +66,12 @@ final class LekhoEngine {
         return riti_context_ongoing_input_session(ctx)
     }
 
-    /// Feed a key. Returns an owned Suggestion the caller must free.
-    /// `selection` is the riti index currently selected (riti preserves it when
-    /// the key is a punctuation mark).
-    func feed(key: UInt16, modifier: UInt8, selection: UInt8) -> OpaquePointer? {
+    /// Feed `char`, whose riti keycode is `key`. Returns an owned Suggestion the
+    /// caller must free. `selection` is the riti index currently selected (riti
+    /// preserves it when the key is a punctuation mark).
+    func feed(_ char: Character, key: UInt16, modifier: UInt8, selection: UInt8) -> OpaquePointer? {
         let suggestion = riti_get_suggestion_for_key(mainCtx, key, modifier, selection)
+        typedText.append(char)
         if let ctx = phoneticCtx {
             let shadow = riti_get_suggestion_for_key(ctx, key, modifier, 0)
             currentPhonetic = Self.lonelyText(of: shadow)
@@ -80,6 +85,7 @@ final class LekhoEngine {
     /// Returns an owned Suggestion the caller must free.
     func backspace(wholeWord: Bool) -> OpaquePointer? {
         let suggestion = riti_context_backspace_event(mainCtx, wholeWord)
+        if wholeWord { typedText = "" } else if !typedText.isEmpty { typedText.removeLast() }
         if let ctx = phoneticCtx {
             let shadow = riti_context_backspace_event(ctx, wholeWord)
             currentPhonetic = Self.lonelyText(of: shadow)
@@ -109,6 +115,7 @@ final class LekhoEngine {
             riti_context_finish_input_session(ctx)
         }
         currentPhonetic = nil
+        typedText = ""
     }
 
     /// The shadow must never outlive the main session.
@@ -118,6 +125,7 @@ final class LekhoEngine {
             riti_context_finish_input_session(ctx)
         }
         currentPhonetic = nil
+        typedText = ""
     }
 
     private static func lonelyText(of suggestion: OpaquePointer?) -> String? {

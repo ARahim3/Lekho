@@ -5,15 +5,27 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_BUNDLE="$PROJECT_ROOT/build/Lekho.app"
 PKG_DIR="$PROJECT_ROOT/build/pkg_staging"
 DMG_DIR="$PROJECT_ROOT/build/dmg_staging"
-VERSION="0.3.2"
-PKG_OUTPUT="$PROJECT_ROOT/build/Lekho.pkg"
-DMG_OUTPUT="$PROJECT_ROOT/build/Lekho-${VERSION}.dmg"
+VERSION="0.4.0"
 VOLUME_NAME="Lekho"
 
 if [ ! -d "$APP_BUNDLE" ]; then
     echo "Error: $APP_BUNDLE not found. Run 'make build' first."
     exit 1
 fi
+
+# The installer accepts the architectures the app was built for. arm64 must be
+# listed or Apple Silicon Macs are asked to install Rosetta. A universal build
+# (make build-universal) is the extra download for Intel Macs, so it gets its
+# own name: Lekho-X.Y.Z-Universal.dmg next to the Apple Silicon Lekho-X.Y.Z.dmg.
+APP_ARCHS="$(lipo -archs "$APP_BUNDLE/Contents/MacOS/Lekho")"
+HOST_ARCHS="$(tr ' ' '\n' <<< "$APP_ARCHS" | sort | paste -sd, -)"
+# The installer allows the same minimum macOS as the app (build.sh sets it).
+MIN_MACOS="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP_BUNDLE/Contents/Info.plist")"
+SUFFIX=""
+[[ " $APP_ARCHS " == *" x86_64 "* ]] && SUFFIX="-Universal"
+PKG_OUTPUT="$PROJECT_ROOT/build/Lekho${SUFFIX}.pkg"
+DMG_OUTPUT="$PROJECT_ROOT/build/Lekho-${VERSION}${SUFFIX}.dmg"
+echo "App architectures: $APP_ARCHS, macOS $MIN_MACOS+"
 
 # Release signing. With a Developer ID Installer certificate in the keychain the
 # package and DMG are signed, notarized and stapled; without one they are built
@@ -142,7 +154,7 @@ pkgbuild \
     --nopayload \
     --scripts "$PKG_DIR/scripts" \
     --identifier "com.lekho.inputmethod.Lekho" \
-    --version "0.3.2" \
+    --version "0.4.0" \
     "$PKG_DIR/Lekho-component.pkg"
 
 # Create a distribution XML for a nicer installer UI
@@ -150,15 +162,15 @@ cat > "$PKG_DIR/distribution.xml" << 'DISTXML'
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
     <title>Lekho</title>
-    <allowed-os-versions><os-version min="13.0"/></allowed-os-versions>
-    <options hostArchitectures="arm64" customize="never" require-scripts="false"/>
+    <allowed-os-versions><os-version min="__MIN_MACOS__"/></allowed-os-versions>
+    <options hostArchitectures="__HOST_ARCHS__" customize="never" require-scripts="false"/>
     <welcome mime-type="text/plain"><![CDATA[
 Welcome to Lekho — Avro Phonetic Bengali Keyboard for macOS.
 
 This will install the Avro Phonetic Bengali keyboard to your Mac.
 
 After installation:
-  1. Open System Settings → Keyboard → Input Sources
+  1. Open __SETTINGS__ → Keyboard → Input Sources
   2. Click + → search "Lekho" → select Lekho → Add
   3. Use Globe key or Ctrl+Space to switch input methods
 
@@ -175,10 +187,15 @@ and log back in for the keyboard to appear.
         <pkg-ref id="com.lekho.inputmethod.Lekho"/>
     </choice>
     <pkg-ref id="com.lekho.inputmethod.Lekho"
-             version="0.3.2"
+             version="0.4.0"
              onConclusion="none">Lekho-component.pkg</pkg-ref>
 </installer-gui-script>
 DISTXML
+# Before macOS 13 the Settings app was called System Preferences.
+SETTINGS="System Settings"
+[ "${MIN_MACOS%%.*}" -lt 13 ] && SETTINGS="System Settings (System Preferences on macOS 11–12)"
+sed -i '' -e "s/__HOST_ARCHS__/$HOST_ARCHS/" -e "s/__MIN_MACOS__/$MIN_MACOS/" \
+    -e "s/__SETTINGS__/$SETTINGS/" "$PKG_DIR/distribution.xml"
 
 echo ">>> Building product package..."
 PRODUCTBUILD_FLAGS=(--distribution "$PKG_DIR/distribution.xml" --package-path "$PKG_DIR")

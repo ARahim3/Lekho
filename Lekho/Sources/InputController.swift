@@ -70,6 +70,30 @@ class LekhoInputController: IMKInputController {
     private var selectedIndex = 0
     /// The user moved the selection (arrows/Tab) since the last letter key.
     private var userNavigated = false
+
+    /// Marked text Lekho composes on its own, outside a riti session.
+    private enum Pending {
+        /// The space after a word picked from the list (Return, number, click),
+        /// committed by the next key but dropped before closing punctuation so
+        /// "আমি।" never becomes "আমি ।".
+        case space
+        /// "." typed right after a digit: "।" unless a digit follows, which makes
+        /// it a plain dot (06.10.2026, 3.14), as in Avro.
+        case dot
+
+        /// Text committed when the pending mark is accepted as is.
+        var text: String {
+            switch self {
+            case .space: return " "
+            case .dot: return "।"
+            }
+        }
+    }
+    private var pending: Pending?
+    /// The last key typed a digit outside a session, so a "." or ":" belongs to a
+    /// number.
+    private var afterDigit = false
+
     private var candidatePanel: CandidatePanel?
     private var lastKnownCursorRect: NSRect = .zero
     /// Last client seen in an IMK callback; fallback for when `client()` is nil.
@@ -85,6 +109,12 @@ class LekhoInputController: IMKInputController {
     /// it (riti `PhoneticMethod::get_suggestion`).
     private static let selectionPreservingKeys: Set<Character> = [
         ".", "?", "!", ",", ":", ";", "-", "_", ")", "}", "]", "'", "\"",
+    ]
+
+    /// Characters that attach to the word before them; a pending space is dropped
+    /// when one of them is typed.
+    private static let closingPunctuation: Set<Character> = [
+        ".", ",", "?", "!", ";", ":", ")", "}", "]",
     ]
 
     private static let emptyRange = NSRange(location: NSNotFound, length: NSNotFound)
@@ -228,10 +258,46 @@ class LekhoInputController: IMKInputController {
         )
     }
 
-    private func insertBengaliDigit(_ digit: Character, client: any IMKTextInput) {
-        let digitValue = Int(String(digit))!
-        let bengaliDigit = String(LekhoInputController.bengaliDigits[digitValue])
-        client.insertText(bengaliDigit as NSString, replacementRange: Self.emptyRange)
+    /// The Bengali digit for an ASCII digit, else nil.
+    private static func bengaliDigit(_ char: Character) -> String? {
+        guard char.isASCII, let value = char.wholeNumberValue else { return nil }
+        return String(bengaliDigits[value])
+    }
+
+    // MARK: - Pending marks
+
+    private func showPending(_ mark: Pending, client: any IMKTextInput) {
+        pending = mark
+        // The space isn't underlined: it's a space about to be typed, not a word
+        // being composed.
+        var attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
+        if case .dot = mark {
+            attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
+        }
+        let text = mark.text
+        client.setMarkedText(
+            NSAttributedString(string: text, attributes: attrs),
+            selectionRange: NSRange(location: text.utf16.count, length: 0),
+            replacementRange: Self.emptyRange
+        )
+    }
+
+    /// Accept the pending mark as it stands.
+    private func commitPending(client: any IMKTextInput) {
+        guard let mark = pending else { return }
+        replacePending(with: mark.text, client: client)
+    }
+
+    /// Commit `text` in place of the pending mark.
+    private func replacePending(with text: String, client: any IMKTextInput) {
+        pending = nil
+        client.insertText(text as NSString, replacementRange: Self.emptyRange)
+    }
+
+    private func dropPending(client: any IMKTextInput) {
+        guard pending != nil else { return }
+        pending = nil
+        clearMarkedText(client: client)
     }
 
     /// Move the selection by one, wrapping around.
@@ -259,6 +325,8 @@ class LekhoInputController: IMKInputController {
     /// Another controller is taking over the shared engine while this one still
     /// has a word in flight (normally `deactivateServer` has already committed).
     func sessionTakenOver() {
+        afterDigit = false
+        if let client = currentClient() { commitPending(client: client) } else { pending = nil }
         if engine.hasSession, let client = currentClient() {
             commitTopCandidate(client: client)
         } else {
@@ -268,6 +336,7 @@ class LekhoInputController: IMKInputController {
 
     /// The typing mode changed; the word being composed is discarded.
     func engineWillRebuild() {
+        if let client = currentClient() { commitPending(client: client) } else { pending = nil }
         if engine.hasSession, let client = currentClient() {
             clearMarkedText(client: client)
         }
@@ -291,22 +360,94 @@ class LekhoInputController: IMKInputController {
         engine.claim(self)
 
         let modifiers = event.modifierFlags
+        let keyCode = event.keyCode
+        let char = event.characters?.first
+        let followsDigit = afterDigit
+        afterDigit = false
+
+        // Ctrl+. always types a plain full stop; a pending "।" or space gives way.
+        if modifiers.contains(.control), !modifiers.contains(.command),
+           event.charactersIgnoringModifiers == "." {
+            if pending != nil {
+                replacePending(with: ".", client: client)
+            } else {
+                if engine.hasSession { commitTopCandidate(client: client) }
+                client.insertText("." as NSString, replacementRange: Self.emptyRange)
+            }
+            return true
+        }
 
         // Pass through events with Cmd or Ctrl modifiers
         if modifiers.contains(.command) || modifiers.contains(.control) {
             // If there's ongoing input, commit it first
+            commitPending(client: client)
             if engine.hasSession {
                 commitTopCandidate(client: client)
             }
             return false
         }
 
-        let keyCode = event.keyCode
+        if let mark = pending {
+            switch mark {
+            case .space:
+                switch keyCode {
+                case 49:                        // Space: it's already there
+                    commitPending(client: client)
+                    return true
+                case 36, 76:                    // Return: no trailing space before a new line
+                    dropPending(client: client)
+                    return false
+                case 51, 53:                    // Backspace, Escape take it back
+                    dropPending(client: client)
+                    return true
+                case 48:                        // Tab leaves without it
+                    dropPending(client: client)
+                    return false
+                default:
+                    if let char = char, Self.closingPunctuation.contains(char) {
+                        dropPending(client: client)
+                    } else if let scalar = char?.unicodeScalars.first, (0xF700...0xF8FF).contains(scalar.value) {
+                        // Arrows, Home/End, Page Up/Down, forward delete, F-keys
+                        // (AppKit's function-key range) leave without it too.
+                        dropPending(client: client)
+                        return false
+                    } else {
+                        commitPending(client: client)
+                    }
+                }
+            case .dot:
+                if let char = char, let digit = Self.bengaliDigit(char) {
+                    replacePending(with: "." + digit, client: client)
+                    afterDigit = true
+                    return true
+                }
+                switch keyCode {
+                case 51, 53:                    // Backspace, Escape take it back
+                    dropPending(client: client)
+                    afterDigit = true
+                    return true
+                case 36, 76:                    // Return commits it, like a word
+                    commitPending(client: client)
+                    return true
+                default:
+                    if char == "`" {            // Avro's escape for a plain dot
+                        replacePending(with: ".", client: client)
+                        return true
+                    }
+                    commitPending(client: client)
+                }
+            }
+        }
 
-        // Handle Enter/Return - commit current selection
+        // Handle Enter/Return - commit current selection. From the list it's a
+        // pick, so a space follows as with Space.
         if keyCode == 36 || keyCode == 76 { // Return or numpad Enter
             if engine.hasSession {
-                commitTopCandidate(client: client)
+                if inLonelySession() {
+                    commitTopCandidate(client: client)
+                } else {
+                    pickCandidate(at: selectedIndex, client: client)
+                }
                 return true
             }
             return false
@@ -368,28 +509,49 @@ class LekhoInputController: IMKInputController {
         }
 
         // Handle digit keys: if no active session, insert Bengali digit directly
-        if !engine.hasSession,
-           let digit = event.characters?.first,
-           digit >= "0" && digit <= "9" {
-            insertBengaliDigit(digit, client: client)
+        if !engine.hasSession, let char = char, let digit = Self.bengaliDigit(char) {
+            client.insertText(digit as NSString, replacementRange: Self.emptyRange)
+            afterDigit = true
             return true
         }
 
-        // Handle number keys 1-9 for candidate selection (when candidates are showing)
-        if engine.hasSession,
-           let digit = event.characters?.first,
-           digit >= "1" && digit <= "9" {
-            if inLonelySession() {
-                // Phonetic-only: no numbered candidates. Commit pre-edit, then
-                // type the digit as a Bengali numeral (matches no-session behavior).
-                commitTopCandidate(client: client)
-                insertBengaliDigit(digit, client: client)
+        // After a digit, "." waits to see if the number goes on (it is "।" at the
+        // end of a sentence), and ":" is a colon (10:30) — never a visarga.
+        if !engine.hasSession, followsDigit, char == "." {
+            showPending(.dot, client: client)
+            return true
+        }
+        if !engine.hasSession, followsDigit, char == ":" {
+            client.insertText(":" as NSString, replacementRange: Self.emptyRange)
+            return true
+        }
+
+        if engine.hasSession, let char = char, let digit = Self.bengaliDigit(char) {
+            let typed = engine.typedText
+            if typed == "." || typed == ":" {
+                // A lone mark before a digit starts a number (".5"), as in Avro.
+                engine.finishSession()
+                resetSessionState()
+                client.insertText((typed + digit) as NSString, replacementRange: Self.emptyRange)
+                afterDigit = true
                 return true
             }
-            let index = Int(String(digit))! - 1
-            if index < displayCandidates.count {
-                commitCandidate(at: index, client: client)
-                return true
+            // Number keys 1-9 pick a candidate only right after a letter; after a
+            // digit or a mark ("covid-19") they are part of the text.
+            if char != "0", typed.last?.isLetter == true {
+                if inLonelySession() {
+                    // Phonetic-only: no numbered candidates. Commit pre-edit, then
+                    // type the digit as a Bengali numeral (matches no-session behavior).
+                    commitTopCandidate(client: client)
+                    client.insertText(digit as NSString, replacementRange: Self.emptyRange)
+                    afterDigit = true
+                    return true
+                }
+                let index = Int(String(char))! - 1
+                if index < displayCandidates.count {
+                    pickCandidate(at: index, client: client)
+                    return true
+                }
             }
         }
 
@@ -432,7 +594,8 @@ class LekhoInputController: IMKInputController {
 
         // Get suggestion from engine
         freeSuggestion()
-        currentSuggestion = engine.feed(key: ritiKey, modifier: ritiModifier, selection: passedSelection)
+        currentSuggestion = engine.feed(Character(firstChar), key: ritiKey,
+                                        modifier: ritiModifier, selection: passedSelection)
 
         if engine.hasSession {
             if !preserveSelection { userNavigated = false }
@@ -499,13 +662,29 @@ class LekhoInputController: IMKInputController {
         commitCandidate(at: selectedIndex, client: client)
     }
 
+    /// A deliberate pick from the list (Return, number key, click): commit it and
+    /// leave a space pending, as typing Space would have.
+    private func pickCandidate(at index: Int, client: any IMKTextInput) {
+        if commitCandidate(at: index, client: client) {
+            showPending(.space, client: client)
+        }
+    }
+
+    /// Mouse click on a row of the candidate panel.
+    func candidateClicked(at index: Int) {
+        guard engine.isOwner(self), engine.hasSession, let client = currentClient() else { return }
+        pickCandidate(at: index, client: client)
+    }
+
     /// Commit the candidate at display index `index` and end the session.
-    private func commitCandidate(at index: Int, client: any IMKTextInput) {
+    /// Returns whether any text was committed.
+    @discardableResult
+    private func commitCandidate(at index: Int, client: any IMKTextInput) -> Bool {
         guard let suggestion = currentSuggestion,
               !riti_suggestion_is_empty(suggestion) else {
             engine.finishSession()
             resetSessionState()
-            return
+            return false
         }
 
         let text: String
@@ -530,6 +709,7 @@ class LekhoInputController: IMKInputController {
 
         client.insertText(text as NSString, replacementRange: Self.emptyRange)
         resetSessionState()
+        return !text.isEmpty
     }
 
     // MARK: - Cursor position for candidate window
@@ -621,10 +801,7 @@ class LekhoInputController: IMKInputController {
         if candidatePanel == nil {
             candidatePanel = CandidatePanel()
             candidatePanel?.onCandidateSelected = { [weak self] index in
-                guard let self = self,
-                      self.engine.isOwner(self),
-                      let client = self.currentClient() else { return }
-                self.commitCandidate(at: index, client: client)
+                self?.candidateClicked(at: index)
             }
         }
 
@@ -656,6 +833,8 @@ class LekhoInputController: IMKInputController {
         // becoming active; clear any leftovers in both engine and controller.
         engine.finishSession()
         resetSessionState()
+        pending = nil
+        afterDigit = false
     }
 
     override func deactivateServer(_ sender: Any!) {
@@ -671,8 +850,11 @@ class LekhoInputController: IMKInputController {
     }
 
     private func commitOrReset(_ sender: Any!) {
+        afterDigit = false
+        let client = (sender as? (any IMKTextInput)) ?? currentClient()
+        if let client = client { commitPending(client: client) } else { pending = nil }
         if engine.isOwner(self), engine.hasSession {
-            if let client = (sender as? (any IMKTextInput)) ?? currentClient() {
+            if let client = client {
                 commitTopCandidate(client: client)
                 return
             }

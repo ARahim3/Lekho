@@ -31,5 +31,5 @@ clean:
 
 # Run Rust tests + the headless input-controller integration test
 test:
-	cd engine && cargo test
+	cd engine && cargo test && cargo test -p upodesh
 	@bash scripts/test.sh

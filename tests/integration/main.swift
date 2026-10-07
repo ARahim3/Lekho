@@ -59,12 +59,14 @@ struct Rig {
     let client = MockClient()
     init() { controller = LekhoInputController(server: nil, delegate: nil, client: nil) }
 
-    func key(_ code: UInt16, chars: String = "", flags: NSEvent.ModifierFlags = []) {
+    @discardableResult
+    func key(_ code: UInt16, chars: String = "", flags: NSEvent.ModifierFlags = []) -> Bool {
         let ev = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0,
                                   windowNumber: 0, context: nil, characters: chars,
                                   charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code)!
         let handled = controller.handle(ev, client: client)
         if code == SPACE && !handled { client.committed += " " }  // space passes through to the app
+        return handled
     }
     func type(_ text: String) {
         for ch in text {
@@ -111,6 +113,9 @@ for (typed, want) in [("sonar", "সনার"), ("hasi", "হাসি"), ("aca
 }
 a.type("sonar"); checkTrue("suggestions still listed below", a.candidates.contains("সোনার"), "\(a.candidates)")
 a.key(ESC); _ = a.take()
+// Patched upodesh (engine/vendor): দ্ধ words were missing from the list.
+a.type("muktizoddha"); check("dictionary word right below", a.candidates.count > 1 ? a.candidates[1] : "", "মুক্তিযোদ্ধা")
+a.key(ESC); _ = a.take()
 a.type("\"ami\""); check("quoted word selects literal spelling", a.client.marked, "“আমি”")
 a.type(" "); check("quoted word commit", a.take(), "“আমি” ")
 
@@ -125,10 +130,11 @@ a.type("sonar ");  check("forgotten again", a.take(), "সনার ")
 // riti itself can never learn a pick of ITS index 0 (হাঁসই for hasi) — ours can.
 a.type("hasi"); checkTrue("riti's top word is row 2", a.candidates.count > 1 && a.candidates[1] == "হাঁসই", "\(a.candidates.prefix(3))")
 a.key(0, chars: "2"); check("pick by number", a.take(), "হাঁসই")
-a.type("hasi ");   check("riti-index-0 pick remembered", a.take(), "হাঁসই ")
+// A pick leaves a space pending; the next word commits it.
+a.type("hasi ");   check("riti-index-0 pick remembered", a.take(), " হাঁসই ")
 a.type("love"); let heart = a.candidates.firstIndex { LekhoInputController.containsEmoji($0) }!
 a.key(0, chars: String(heart + 1)); _ = a.take()
-a.type("love ");   check("emoji pick is NOT remembered", a.take(), "লভে ")
+a.type("love ");   check("emoji pick is NOT remembered", a.take(), " লভে ")
 checkTrue("riti selections file untouched in this mode",
           !FileManager.default.fileExists(atPath: userDir + "/phonetic-candidate-selection.json"))
 
@@ -150,10 +156,12 @@ a.key(ESC); _ = a.take()
 print("== smart mode (emoji off): index mapping + riti learning")
 setMode("smart")
 a.type("sonar "); check("smart commits top-ranked", a.take(), "সোনার ")
+a.type("muktizoddha "); check("smart corrects দ্ধ word", a.take(), "মুক্তিযোদ্ধা ")
+a.type("oitijjo "); check("smart finds word-initial ঐ", a.take(), "ঐতিহ্য ")
 a.type("fire"); let smartList = a.candidates
 checkTrue("no emoji in smart list", !smartList.contains { LekhoInputController.containsEmoji($0) }, "\(smartList)")
 a.key(0, chars: "2"); check("number key picks displayed row 2", a.take(), smartList[1])
-a.type("fire "); check("riti learned that row (mapped index)", a.take(), smartList[1] + " ")
+a.type("fire "); check("riti learned that row (mapped index)", a.take(), " " + smartList[1] + " ")
 setEmoji(true)
 a.type("boish"); checkTrue("riti ranks an emoji first here", LekhoInputController.containsEmoji(a.candidates[0]), "\(a.candidates.prefix(3))")
 a.type(" "); check("…but space never commits an emoji", a.take(), "বিশ ")
@@ -189,6 +197,45 @@ check("second client starts clean", b.take(), "ত ")
 a.type("tumi"); b.controller.activateServer(b.client)
 check("activate elsewhere commits the old word", a.take(), "তুমি")
 a.type("ki"); a.controller.deactivateServer(a.client); check("deactivate commits", a.take(), "কি")
+
+print("== numbers keep their dots and colons; digits are never eaten")
+for mode in ["smart", "phoneticFirst", "phoneticOnly"] {
+    setMode(mode)
+    for (typed, want) in [("06.10.2026 ", "০৬.১০.২০২৬ "), ("3.14 ", "৩.১৪ "), ("10:30 ", "১০:৩০ "),
+                          ("25. ", "২৫। "), (".5 ", ".৫ "), ("1.` ", "১. "), ("ami. ", "আমি। ")] {
+        a.type(typed); check("\(mode): \(typed)", a.take(), want)
+    }
+    a.type("25."); a.key(BKSP); a.type("0 "); check("\(mode): backspace drops the pending dot", a.take(), "২৫০ ")
+    a.type("25"); a.key(47, chars: ".", flags: .control); a.type(" ")
+    check("\(mode): Ctrl+. after a number", a.take(), "২৫. ")
+    a.type("ami"); a.key(47, chars: ".", flags: .control)
+    check("\(mode): Ctrl+. after a word", a.take(), "আমি.")
+    a.type("covid-19 "); let covid = a.take()
+    checkTrue("\(mode): digits after a hyphen are typed", covid.hasSuffix("-১৯ "), covid)
+}
+
+print("== picking from the list types the space too")
+for mode in ["smart", "phoneticFirst"] {
+    setMode(mode)
+    a.type("ami"); let picked = a.candidates[0]
+    a.key(RET); check("\(mode): Return picks", a.take(), picked)
+    check("\(mode): a space is pending", a.client.marked, " ")
+    a.type("tumi "); check("\(mode): next word commits the space", a.take(), " তুমি ")
+    a.type("ami"); a.key(RET); a.type(". ")
+    check("\(mode): no space before punctuation", a.take(), picked + "। ")
+    a.type("ami"); a.key(RET); a.key(SPACE)
+    check("\(mode): Space after a pick gives one space", a.take(), picked + " ")
+    a.type("ami"); a.key(RET); let passedOn = !a.key(RET)
+    checkTrue("\(mode): second Return reaches the app, no trailing space", passedOn && a.take() == picked)
+    a.type("ami"); a.key(RET); a.key(BKSP)
+    check("\(mode): Backspace takes the space back", a.take() + a.client.marked, picked)
+    a.type("ami"); a.key(RET); let arrowPassed = !a.key(DOWN, chars: "\u{F701}")
+    checkTrue("\(mode): an arrow leaves without the space", arrowPassed && a.take() + a.client.marked == picked)
+    a.type("ami"); let second = a.candidates[1]; a.controller.candidateClicked(at: 1)
+    a.type("ki "); check("\(mode): mouse pick + next word", a.take(), second + " কি ")
+}
+setMode("phoneticOnly")
+a.type("ami"); a.key(RET); check("phonetic-only Return commits without a space", a.take() + a.client.marked, "আমি")
 
 print("== live mode switch mid-word drops the word")
 a.type("sonar"); setMode("smart")
