@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://arahim3.github.io/Lekho/sitemap.xml
+Sitemap: https://arahim.dev/Lekho/sitemap.xml

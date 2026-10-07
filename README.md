@@ -16,7 +16,7 @@
 
 Lekho brings Avro Phonetic-style Bangla (Bengali) typing to Apple Silicon Macs natively (M1, M2, M3, M4, M5) — no Rosetta required. If you used Avro Keyboard on Windows, iAvro on macOS, or OpenBangla Keyboard on Linux, Lekho is your native Apple Silicon alternative.
 
-**[Download](https://github.com/ARahim3/Lekho/releases/latest)** | **[Website](https://arahim3.github.io/Lekho/)**
+**[Download](https://github.com/ARahim3/Lekho/releases/latest)** | **[Website](https://arahim.dev/Lekho/)**
 
 ---
 
