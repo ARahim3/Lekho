@@ -12,7 +12,8 @@ crate-type = ["staticlib"]
 riti = { git = "https://github.com/OpenBangla/riti.git" }
 
 # riti's dictionary search crate, patched: 0.4.0 can't find দ্ধ words
-# (মুক্তিযোদ্ধা, যুদ্ধ, বুদ্ধি), word-initial ঐ/ঔ, and a few more. Drop this once
-# upstream ships the fixes. Details: vendor/upodesh/PATCHES.md
+# (মুক্তিযোদ্ধা, যুদ্ধ, বুদ্ধি), word-initial ঐ/ঔ, and words its dictionary
+# stores mis-encoded (কোনো); Lekho also adds a few frequent words.
+# Details: vendor/upodesh/PATCHES.md
 [patch.crates-io]
 upodesh = { path = "vendor/upodesh" }

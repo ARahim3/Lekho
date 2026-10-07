@@ -116,6 +116,9 @@ a.key(ESC); _ = a.take()
 // Patched upodesh (engine/vendor): দ্ধ words were missing from the list.
 a.type("muktizoddha"); check("dictionary word right below", a.candidates.count > 1 ? a.candidates[1] : "", "মুক্তিযোদ্ধা")
 a.key(ESC); _ = a.take()
+// Repaired entry (stored with ো as two code points before): কোনো.
+a.type("kono"); checkTrue("kono offers \u{995}\u{9cb}\u{9a8}\u{9cb}", a.candidates.contains("\u{995}\u{9cb}\u{9a8}\u{9cb}"), "\(a.candidates)")
+a.key(ESC); _ = a.take()
 a.type("\"ami\""); check("quoted word selects literal spelling", a.client.marked, "“আমি”")
 a.type(" "); check("quoted word commit", a.take(), "“আমি” ")
 
@@ -158,6 +161,7 @@ setMode("smart")
 a.type("sonar "); check("smart commits top-ranked", a.take(), "সোনার ")
 a.type("muktizoddha "); check("smart corrects দ্ধ word", a.take(), "মুক্তিযোদ্ধা ")
 a.type("oitijjo "); check("smart finds word-initial ঐ", a.take(), "ঐতিহ্য ")
+a.type("onurodh "); check("smart finds a repaired entry", a.take(), "\u{985}\u{9a8}\u{9c1}\u{9b0}\u{9cb}\u{9a7} ")
 a.type("fire"); let smartList = a.candidates
 checkTrue("no emoji in smart list", !smartList.contains { LekhoInputController.containsEmoji($0) }, "\(smartList)")
 a.key(0, chars: "2"); check("number key picks displayed row 2", a.take(), smartList[1])

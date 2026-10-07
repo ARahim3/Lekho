@@ -5,7 +5,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_BUNDLE="$PROJECT_ROOT/build/Lekho.app"
 PKG_DIR="$PROJECT_ROOT/build/pkg_staging"
 DMG_DIR="$PROJECT_ROOT/build/dmg_staging"
-VERSION="0.4.0"
+VERSION="0.4.1"
 VOLUME_NAME="Lekho"
 
 if [ ! -d "$APP_BUNDLE" ]; then
@@ -154,7 +154,7 @@ pkgbuild \
     --nopayload \
     --scripts "$PKG_DIR/scripts" \
     --identifier "com.lekho.inputmethod.Lekho" \
-    --version "0.4.0" \
+    --version "0.4.1" \
     "$PKG_DIR/Lekho-component.pkg"
 
 # Create a distribution XML for a nicer installer UI
@@ -187,7 +187,7 @@ and log back in for the keyboard to appear.
         <pkg-ref id="com.lekho.inputmethod.Lekho"/>
     </choice>
     <pkg-ref id="com.lekho.inputmethod.Lekho"
-             version="0.4.0"
+             version="0.4.1"
              onConclusion="none">Lekho-component.pkg</pkg-ref>
 </installer-gui-script>
 DISTXML

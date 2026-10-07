@@ -177,7 +177,8 @@ mod tests {
                 "স্মঅরী"
             ]
         );
-        assert_eq!(sort(suggest.suggest("sar")), vec!["ষাঁড়", "সার", "সার্ব", "সাড়"]);
+        // স্যার: added by Lekho (data/lekho-extra-words.txt).
+        assert_eq!(sort(suggest.suggest("sar")), vec!["ষাঁড়", "সার", "সার্ব", "সাড়", "স্যার"]);
         assert_eq!(sort(suggest.suggest("amra")), vec!["অমরা", "আমরা", "আমড়া"]);
         assert_eq!(sort(suggest.suggest("lalshak")), vec!["লালশাক"]);
         assert_eq!(sort(suggest.suggest("lalrong")), vec!["লালরং", "লালরঙ"]);
@@ -241,5 +242,22 @@ mod tests {
         finds("oushodh", "ঔষধ");
         // First block is only a prefix of a longer pattern.
         finds("jnan", "জ্ঞান");
+    }
+
+    // Lekho's word list: mis-encoded entries repaired, frequent words added.
+    #[test]
+    fn test_lekho_words() {
+        let suggest = Suggest::new();
+        let words = |input: &str| suggest.suggest(input);
+
+        // Stored with ো as two code points, so no input could reach them.
+        assert!(words("kono").iter().any(|w| w == "কোনো"));
+        assert!(words("onurodh").iter().any(|w| w == "অনুরোধ"));
+        // Added.
+        assert!(words("hothat").iter().any(|w| w == "হঠাৎ"));
+        assert!(words("peyecho").iter().any(|w| w == "\u{9aa}\u{9c7}\u{9df}\u{9c7}\u{99b}\u{9cb}")); // পেয়েছো
+        // Dropped rather than repaired: it would outrank the standard spelling.
+        assert!(words("jekono").iter().any(|w| w == "যেকোনো"));
+        assert!(!words("jekono").iter().any(|w| w == "যেকোন"));
     }
 }
