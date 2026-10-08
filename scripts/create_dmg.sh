@@ -144,11 +144,14 @@ sleep 0.5
 # Launch the NEW binary as the real user
 su "$REAL_USER" -c "open '$INSTALL_DIR/Lekho.app'" 2>/dev/null || true
 
-# Show an updated menu icon now rather than after the next log out: the input
-# menu agent caches icons, and launchd restarts it at once. Wait for macOS to
-# rescan Input Methods first (it does so ~2 s after a change).
+# Show an updated icon now rather than after the next log out. Three processes
+# cache it: the input menu, the Globe/fn switcher and the input-source pill at
+# the text cursor. macOS relaunches them on demand. The last two ignore SIGTERM.
+# Wait for macOS to rescan Input Methods first (it does so ~2 s after a change).
 sleep 4
 pkill -x -u "$REAL_USER" TextInputMenuAgent 2>/dev/null || true
+pkill -KILL -x -u "$REAL_USER" TextInputSwitcher 2>/dev/null || true
+pkill -KILL -x -u "$REAL_USER" CursorUIViewService 2>/dev/null || true
 
 exit 0
 SCRIPT
