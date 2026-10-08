@@ -77,10 +77,10 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp "$SWIFT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $MIN_MACOS" "$APP_BUNDLE/Contents/Info.plist"
 
-# Copy icons (MenuIcon.pdf: full-color input-menu icon, see generate_menu_icon.swift).
+# Copy icons (MenuIcon.tiff: full-color input-menu icon; it must be a bitmap, see generate_menu_icon.swift).
 # The old iconTemplate.pdf still ships: macOS keeps an updated input method's old
 # icon until the user logs out, so that path must not vanish in the meantime.
-cp "$SWIFT_DIR/Resources/MenuIcon.pdf" "$APP_BUNDLE/Contents/Resources/MenuIcon.pdf"
+cp "$SWIFT_DIR/Resources/MenuIcon.tiff" "$APP_BUNDLE/Contents/Resources/MenuIcon.tiff"
 cp "$SWIFT_DIR/Resources/iconTemplate.pdf" "$APP_BUNDLE/Contents/Resources/iconTemplate.pdf"
 cp "$SWIFT_DIR/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 

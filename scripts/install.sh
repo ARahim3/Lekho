@@ -42,6 +42,10 @@ ln -sf "$INSTALL_DIR/$APP_NAME.app" "/Applications/$APP_NAME.app" 2>/dev/null ||
 echo ">>> Launching $APP_NAME..."
 open "$INSTALL_DIR/$APP_NAME.app"
 
+# Refresh the input menu so an icon change shows without logging out (see create_dmg.sh)
+sleep 4
+killall TextInputMenuAgent 2>/dev/null || true
+
 echo ""
 echo "=== Installation complete ==="
 echo ""

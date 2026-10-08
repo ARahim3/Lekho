@@ -5,7 +5,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_BUNDLE="$PROJECT_ROOT/build/Lekho.app"
 PKG_DIR="$PROJECT_ROOT/build/pkg_staging"
 DMG_DIR="$PROJECT_ROOT/build/dmg_staging"
-VERSION="0.4.1"
+VERSION="0.4.2"
 VOLUME_NAME="Lekho"
 
 if [ ! -d "$APP_BUNDLE" ]; then
@@ -144,6 +144,12 @@ sleep 0.5
 # Launch the NEW binary as the real user
 su "$REAL_USER" -c "open '$INSTALL_DIR/Lekho.app'" 2>/dev/null || true
 
+# Show an updated menu icon now rather than after the next log out: the input
+# menu agent caches icons, and launchd restarts it at once. Wait for macOS to
+# rescan Input Methods first (it does so ~2 s after a change).
+sleep 4
+pkill -x -u "$REAL_USER" TextInputMenuAgent 2>/dev/null || true
+
 exit 0
 SCRIPT
 chmod +x "$PKG_DIR/scripts/postinstall"
@@ -154,7 +160,7 @@ pkgbuild \
     --nopayload \
     --scripts "$PKG_DIR/scripts" \
     --identifier "com.lekho.inputmethod.Lekho" \
-    --version "0.4.1" \
+    --version "0.4.2" \
     "$PKG_DIR/Lekho-component.pkg"
 
 # Create a distribution XML for a nicer installer UI
@@ -187,7 +193,7 @@ and log back in for the keyboard to appear.
         <pkg-ref id="com.lekho.inputmethod.Lekho"/>
     </choice>
     <pkg-ref id="com.lekho.inputmethod.Lekho"
-             version="0.4.1"
+             version="0.4.2"
              onConclusion="none">Lekho-component.pkg</pkg-ref>
 </installer-gui-script>
 DISTXML
